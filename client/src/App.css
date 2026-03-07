@@ -38,6 +38,13 @@ h1, h2, h3, h4 { margin: 0; }
 .tab-btn { height: 36px; border: 1px solid var(--line); background: var(--panel); color: #d7d9dd; border-radius: 6px; padding: 0 12px; min-width: 104px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
 .tab-btn.active { border-color: var(--accent); background: #412b19; color: #fff; }
 .icon-btn { width: 34px; height: 34px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); cursor: pointer; }
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  color: #f0f1f2;
+}
 
 .grid-two { display: grid; grid-template-columns: 320px 1fr; gap: 12px; margin-top: 12px; }
 .groups-layout { display: grid; grid-template-columns: 300px 1fr 280px; gap: 12px; margin-top: 12px; }
@@ -303,7 +310,6 @@ h1, h2, h3, h4 { margin: 0; }
     width: auto;
     margin-left: auto;
     justify-content: flex-end;
-    font-size: 0;
     gap: 0;
   }
   .user-pill .avatar,

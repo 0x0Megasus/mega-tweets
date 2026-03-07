@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { onAuthStateChanged, signInWithPopup, signOut } from "firebase/auth";
+import { browserLocalPersistence, onAuthStateChanged, setPersistence, signInWithPopup, signOut } from "firebase/auth";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
 import { api } from "./api";
@@ -176,7 +176,10 @@ function App() {
 
   const login = async () => {
     setLoginLoading(true); setError("");
-    try { await withLoad(() => signInWithPopup(auth, googleProvider)); }
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+      await withLoad(() => signInWithPopup(auth, googleProvider));
+    }
     catch (e) { setError(e.message); }
     finally { setLoginLoading(false); }
   };
