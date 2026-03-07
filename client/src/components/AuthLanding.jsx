@@ -1,3 +1,5 @@
+import { FaGoogle } from "react-icons/fa";
+
 export default function AuthLanding({ login, loginLoading, error }) {
   return (
     <div className="landing">
@@ -6,6 +8,7 @@ export default function AuthLanding({ login, loginLoading, error }) {
         <h1>Read. Write. Connect.</h1>
         <button type="button" onClick={login} className="primary-btn login-btn" disabled={loginLoading}>
           {loginLoading ? <span className="btn-spinner" /> : null}
+          {!loginLoading ? <FaGoogle /> : null}
           <span>{loginLoading ? "Signing in..." : "Continue With Google"}</span>
         </button>
         {error && <p className="error-text">{error}</p>}
