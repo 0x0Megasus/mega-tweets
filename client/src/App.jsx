@@ -150,7 +150,15 @@ function App() {
         const [members, messages] = await Promise.all([api.groupMembers(token, selectedGroup), api.groupMessages(token, selectedGroup)]);
         if (!mounted) return;
         setGroupMembers(members); setGroupMessages(messages);
-      } catch (e) { if (mounted && !String(e.message).includes("Join this group")) setError(e.message); }
+      } catch (e) {
+        if (!mounted) return;
+        if (String(e.message).includes("Join this group")) {
+          setGroupMembers([]);
+          setGroupMessages([]);
+          return;
+        }
+        setError(e.message);
+      }
     };
     tick();
     const timer = setInterval(tick, 2000);

@@ -66,12 +66,16 @@ export default function GroupsView(props) {
           {isMobile && <button type="button" className="back-btn" onClick={() => setMobileGroupPage("list")}>Back to groups</button>}
           <h3><FaComments /> Group Chat</h3>
           {selectedGroupData ? (
-            <>
-              {selectedGroupData.isAdmin && selectedGroupData.inviteLink && <div className="invite-link-row"><span>{selectedGroupData.inviteLink}</span><button type="button" onClick={() => navigator.clipboard?.writeText(selectedGroupData.inviteLink)}><FaCopy /></button></div>}
-              <div ref={listRef} className="messages-box">{groupMessages.length ? groupMessages.map((m) => <div key={m.id} className={`message-item ${m.senderUid === profile.uid ? "mine" : ""} ${m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid ? "is-reply-to-me" : ""}`}><img src={m.senderPhotoURL || ""} alt={m.senderNickname} className="avatar-msg" /><div className="msg-bubble"><strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>{m.senderNickname}</strong>{m.replyTo && <p className="reply-preview">@{m.replyTo.senderNickname}: {m.replyTo.text}</p>}<p>{m.text}</p><small>{timeAgo(m.createdAt)}</small>{m.senderUid !== profile.uid && <button type="button" className="reply-btn" onClick={() => setGroupReplyTo(m)}><FaReply /> Reply</button>}</div></div>) : <p className="empty-messages">No group messages yet.</p>}</div>
-              {groupReplyTo && <div className="replying-chip">Replying to {groupReplyTo.senderNickname}<button type="button" onClick={() => setGroupReplyTo(null)}>x</button></div>}
-              <form onSubmit={sendGroup} className="row-form chat-input-row"><input value={groupDraft} onChange={(e) => setGroupDraft(e.target.value)} placeholder="Write to group" required /><button type="submit" className="send-icon-btn" disabled={groupSending}>{groupSending ? <span className="btn-spinner" /> : <FaPaperPlane />}</button></form>
-            </>
+            selectedGroupData.joined ? (
+              <>
+                {selectedGroupData.isAdmin && selectedGroupData.inviteLink && <div className="invite-link-row"><span>{selectedGroupData.inviteLink}</span><button type="button" onClick={() => navigator.clipboard?.writeText(selectedGroupData.inviteLink)}><FaCopy /></button></div>}
+                <div ref={listRef} className="messages-box">{groupMessages.length ? groupMessages.map((m) => <div key={m.id} className={`message-item ${m.senderUid === profile.uid ? "mine" : ""} ${m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid ? "is-reply-to-me" : ""}`}><img src={m.senderPhotoURL || ""} alt={m.senderNickname} className="avatar-msg" /><div className="msg-bubble"><strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>{m.senderNickname}</strong>{m.replyTo && <p className="reply-preview">@{m.replyTo.senderNickname}: {m.replyTo.text}</p>}<p>{m.text}</p><small>{timeAgo(m.createdAt)}</small>{m.senderUid !== profile.uid && <button type="button" className="reply-btn" onClick={() => setGroupReplyTo(m)}><FaReply /> Reply</button>}</div></div>) : <p className="empty-messages">No group messages yet.</p>}</div>
+                {groupReplyTo && <div className="replying-chip">Replying to {groupReplyTo.senderNickname}<button type="button" onClick={() => setGroupReplyTo(null)}>x</button></div>}
+                <form onSubmit={sendGroup} className="row-form chat-input-row"><input value={groupDraft} onChange={(e) => setGroupDraft(e.target.value)} placeholder="Write to group" required /><button type="submit" className="send-icon-btn" disabled={groupSending}>{groupSending ? <span className="btn-spinner" /> : <FaPaperPlane />}</button></form>
+              </>
+            ) : (
+              <p>Join the group to see its messages.</p>
+            )
           ) : <p>Select a group.</p>}
         </article>
       )}

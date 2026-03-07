@@ -31,7 +31,7 @@ h1, h2, h3, h4 { margin: 0; }
 .btn-spinner { width: 14px; height: 14px; border: 2px solid #1116; border-top-color: #111; }
 .spinner { width: 34px; height: 34px; border: 3px solid #4b4f58; border-top-color: var(--accent); }
 
-.app-shell { width: min(1320px, calc(100% - 24px)); margin: 12px auto 20px; }
+.app-shell { width: min(1320px, calc(100% - 24px)); margin: 12px auto 20px; min-height: 100dvh; }
 .top-nav { position: sticky; top: 10px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: #232428; }
 .brand, .user-pill { display: flex; align-items: center; gap: 8px; }
 .tab-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; flex: 1; }
@@ -258,35 +258,89 @@ h1, h2, h3, h4 { margin: 0; }
 }
 
 @media (max-width: 960px) {
-  .top-nav { flex-wrap: wrap; }
+  .app-shell {
+    width: 100%;
+    margin: 0;
+    padding: 6px;
+    height: 100dvh;
+    overflow: hidden;
+  }
+  .top-nav {
+    flex-wrap: wrap;
+    top: 0;
+    gap: 6px;
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+  .brand {
+    gap: 6px;
+    font-size: 13px;
+  }
+  .brand svg {
+    width: 14px;
+    height: 14px;
+  }
   .tab-row { width: 100%; }
-  .tab-btn { min-width: 92px; flex: 1 1 calc(33.333% - 8px); }
-  .user-pill { width: 100%; justify-content: center; }
+  .tab-btn {
+    min-width: 92px;
+    height: 30px;
+    font-size: 12px;
+    padding: 0 8px;
+    gap: 5px;
+    flex: 1 1 calc(33.333% - 8px);
+  }
+  .icon-btn {
+    width: 30px;
+    height: 30px;
+  }
+  .avatar {
+    width: 28px;
+    height: 28px;
+  }
+  .user-pill {
+    width: 100%;
+    justify-content: center;
+    font-size: 12px;
+  }
   .grid-two, .groups-layout { grid-template-columns: 1fr; }
   .feed-layout,
   .dm-layout,
   .groups-layout {
-    height: 90vh;
-    max-height: 90vh;
+    margin-top: 6px;
+    height: calc(100dvh - 114px);
+    max-height: calc(100dvh - 114px);
   }
   .panel.sticky { position: static; }
   .msg-bubble { max-width: 92%; }
-  .app-shell { width: min(1320px, calc(100% - 14px)); margin: 8px auto 16px; }
-  .panel { padding: 12px; }
+  .panel { padding: 10px; }
+  .chat-panel .messages-box {
+    height: auto;
+    min-height: 0;
+  }
 }
 
 @media (max-width: 640px) {
+  .top-nav {
+    padding: 5px 6px;
+  }
+  .brand span {
+    display: none;
+  }
   .tab-btn {
     flex: 1 1 calc(50% - 8px);
     min-width: 0;
-    padding: 0 8px;
-  }
-  .brand {
-    width: 100%;
-    justify-content: center;
+    height: 28px;
+    padding: 0 6px;
+    font-size: 11px;
   }
   .dm-user-item {
     justify-content: flex-start;
     text-align: left;
+  }
+  .feed-layout,
+  .dm-layout,
+  .groups-layout {
+    height: calc(100dvh - 104px);
+    max-height: calc(100dvh - 104px);
   }
 }
