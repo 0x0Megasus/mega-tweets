@@ -264,6 +264,8 @@ h1, h2, h3, h4 { margin: 0; }
     padding: 6px;
     height: 100dvh;
     overflow: hidden;
+    display: flex;
+    flex-direction: column;
   }
   .top-nav {
     flex-wrap: wrap;
@@ -282,33 +284,45 @@ h1, h2, h3, h4 { margin: 0; }
   }
   .tab-row { width: 100%; }
   .tab-btn {
-    min-width: 92px;
-    height: 30px;
-    font-size: 12px;
-    padding: 0 8px;
-    gap: 5px;
-    flex: 1 1 calc(33.333% - 8px);
+    min-width: 44px;
+    width: 44px;
+    height: 28px;
+    font-size: 11px;
+    padding: 0;
+    gap: 0;
+    flex: 0 0 44px;
+  }
+  .tab-btn span {
+    display: none;
   }
   .icon-btn {
-    width: 30px;
-    height: 30px;
-  }
-  .avatar {
     width: 28px;
     height: 28px;
   }
   .user-pill {
-    width: 100%;
-    justify-content: center;
-    font-size: 12px;
+    width: auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    font-size: 0;
+    gap: 0;
+  }
+  .user-pill .avatar,
+  .user-pill span {
+    display: none;
   }
   .grid-two, .groups-layout { grid-template-columns: 1fr; }
   .feed-layout,
   .dm-layout,
   .groups-layout {
     margin-top: 6px;
-    height: calc(100dvh - 114px);
-    max-height: calc(100dvh - 114px);
+    height: auto;
+    max-height: none;
+  }
+  .app-shell > .feed-layout,
+  .app-shell > .dm-layout,
+  .app-shell > .groups-layout {
+    flex: 1;
+    min-height: 0;
   }
   .panel.sticky { position: static; }
   .msg-bubble { max-width: 92%; }
@@ -316,6 +330,9 @@ h1, h2, h3, h4 { margin: 0; }
   .chat-panel .messages-box {
     height: auto;
     min-height: 0;
+  }
+  .chat-input-row {
+    flex-shrink: 0;
   }
 }
 
@@ -327,20 +344,15 @@ h1, h2, h3, h4 { margin: 0; }
     display: none;
   }
   .tab-btn {
-    flex: 1 1 calc(50% - 8px);
-    min-width: 0;
+    flex: 0 0 38px;
+    width: 38px;
+    min-width: 38px;
     height: 28px;
-    padding: 0 6px;
-    font-size: 11px;
+    padding: 0;
+    font-size: 10px;
   }
   .dm-user-item {
     justify-content: flex-start;
     text-align: left;
-  }
-  .feed-layout,
-  .dm-layout,
-  .groups-layout {
-    height: calc(100dvh - 104px);
-    max-height: calc(100dvh - 104px);
   }
 }
