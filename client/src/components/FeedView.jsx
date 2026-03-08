@@ -39,7 +39,7 @@ export default function FeedView(props) {
                         <img src={n.authorPhotoURL || ""} alt={n.authorNickname} className="avatar" />
                         <div>
                           <strong>{n.authorNickname}</strong>
-                          <small>{timeAgo(n.createdAt)}</small>
+                          <small> {timeAgo(n.createdAt)}</small>
                         </div>
                       </div>
                       <span className="tag">{n.language}</span>
