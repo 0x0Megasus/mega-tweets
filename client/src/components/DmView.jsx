@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { FaComments, FaPaperPlane, FaReply, FaUserCircle } from "react-icons/fa";
+import { FaComments, FaPaperPlane, FaReply, FaUserCircle, FaTimes } from "react-icons/fa";
 
 export default function DmView({
   isMobile,
@@ -101,7 +101,7 @@ export default function DmView({
                 <div className="replying-chip">
                   Replying to {dmReplyTo.senderNickname}
                   <button type="button" onClick={() => setDmReplyTo(null)}>
-                    x
+                    <FaTimes />
                   </button>
                 </div>
               )}

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from "react";
-import { FaComments, FaCopy, FaCrown, FaPaperPlane, FaReply, FaUsers } from "react-icons/fa";
+import { FaComments, FaCopy, FaCrown, FaPaperPlane, FaReply, FaUsers, FaTimes } from "react-icons/fa";
 
 export default function GroupsView(props) {
   const {
@@ -201,7 +201,7 @@ export default function GroupsView(props) {
                   <div className="replying-chip">
                     Replying to {groupReplyTo.senderNickname}
                     <button type="button" onClick={() => setGroupReplyTo(null)}>
-                      x
+                      <FaTimes />
                     </button>
                   </div>
                 )}
