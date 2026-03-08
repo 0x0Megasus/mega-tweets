@@ -10,6 +10,7 @@ export default function DmView({
   setDmTargetUid,
   setDmReplyTo,
   dmMessages,
+  dmMessagesLoading,
   profile,
   timeAgo,
   dmReplyTo,
@@ -63,7 +64,9 @@ export default function DmView({
           {dmTargetUid ? (
             <>
               <div ref={listRef} className="messages-box">
-                {dmMessages.length ? (
+                {dmMessagesLoading ? (
+                  <div className="empty-messages"><div className="spinner" /></div>
+                ) : dmMessages.length ? (
                   dmMessages.map((m) => (
                     <div
                       key={m.id}

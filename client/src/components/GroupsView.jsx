@@ -31,6 +31,7 @@ export default function GroupsView(props) {
     groupMembers,
     promote,
     removeMember,
+    groupMessagesLoading,
   } = props;
 
   const listRef = useRef(null);
@@ -157,7 +158,9 @@ export default function GroupsView(props) {
                   </div>
                 )}
                 <div ref={listRef} className="messages-box">
-                  {groupMessages.length ? (
+                  {groupMessagesLoading ? (
+                    <div className="empty-messages"><div className="spinner" /></div>
+                  ) : groupMessages.length ? (
                     groupMessages.map((m) => (
                       <div
                         key={m.id}

@@ -91,6 +91,7 @@ function App() {
   const [mobileDmPage, setMobileDmPage] = useState("list");
   const [dmMessagesLoading, setDmMessagesLoading] = useState(false);
   const [likeLoadingId, setLikeLoadingId] = useState("");
+  const [commentLoadingId, setCommentLoadingId] = useState("");
 
   const currentTab = useMemo(() => {
     const firstSegment = location.pathname.split("/")[1];
@@ -102,9 +103,12 @@ function App() {
   const selectedGroupData = useMemo(() => groups.find((g) => g.id === selectedGroup), [groups, selectedGroup]);
   const others = useMemo(() => users.filter((u) => u.uid !== profile?.uid && u.nickname), [users, profile]);
 
-  const withLoad = async (task) => {
-    setPendingCount((v) => v + 1);
-    try { return await task(); } finally { setPendingCount((v) => Math.max(0, v - 1)); }
+  // withLoad: runs an async task and optionally increments global pending counter
+  // pass options { global: false } to avoid triggering the global fullscreen loader
+  const withLoad = async (task, options = { global: true }) => {
+    const inc = options?.global !== false;
+    if (inc) setPendingCount((v) => v + 1);
+    try { return await task(); } finally { if (inc) setPendingCount((v) => Math.max(0, v - 1)); }
   };
 
   const refreshBase = async () => {
@@ -249,9 +253,14 @@ function App() {
   const likeNovel = async (id) => {
     try {
       setLikeLoadingId(id);
-      await withLoad(() => api.toggleLike(token, id));
-      await refreshNovels();
-      await refreshBase();
+      // perform like without triggering fullscreen loader; update lists quietly
+      await withLoad(() => api.toggleLike(token, id), { global: false });
+      const [nv, u] = await Promise.all([
+        withLoad(() => api.novels(token), { global: false }),
+        withLoad(() => api.users(token), { global: false }),
+      ]);
+      setNovels(nv);
+      setUsers(u);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -261,8 +270,13 @@ function App() {
 
   const toggleComments = async (id) => {
     if (commentCache[id]) { setCommentCache((p) => { const n = { ...p }; delete n[id]; return n; }); return; }
-    try { const comments = await withLoad(() => api.comments(token, id)); setCommentCache((p) => ({ ...p, [id]: comments })); }
+    try {
+      setCommentLoadingId(id);
+      const comments = await withLoad(() => api.comments(token, id), { global: false });
+      setCommentCache((p) => ({ ...p, [id]: comments }));
+    }
     catch (e) { setError(e.message); }
+    finally { setCommentLoadingId(""); }
   };
 
   const sendComment = async (e, id) => {
@@ -270,11 +284,15 @@ function App() {
     const text = String(new FormData(e.currentTarget).get("text") || "").trim();
     if (!text) return;
     try {
-      await withLoad(() => api.addComment(token, id, text));
-      const comments = await withLoad(() => api.comments(token, id));
+      setCommentLoadingId(id);
+      await withLoad(() => api.addComment(token, id, text), { global: false });
+      const comments = await withLoad(() => api.comments(token, id), { global: false });
       setCommentCache((p) => ({ ...p, [id]: comments }));
-      await refreshNovels(); await refreshBase(); e.currentTarget.reset();
+      // update novel's commentsCount locally without hitting global loader
+      setNovels((prev) => prev.map((n) => (n.id === id ? { ...n, commentsCount: (n.commentsCount || 0) + 1 } : n)));
+      e.currentTarget.reset();
     } catch (x) { setError(x.message); }
+    finally { setCommentLoadingId(""); }
   };
 
   const startEdit = (n) => { setEditingId(n.id); setEditTitle(n.title); setEditLang(n.language); setEditContent(n.content); };
@@ -356,7 +374,7 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView LANGS={LANGS} postTitle={postTitle} setPostTitle={setPostTitle} postLanguage={postLanguage} setPostLanguage={setPostLanguage} postContent={postContent} setPostContent={setPostContent} postNovel={postNovel} novels={novels} editingId={editingId} editTitle={editTitle} setEditTitle={setEditTitle} editLang={editLang} setEditLang={setEditLang} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} />} />
+        <Route path="/feed" element={<FeedView LANGS={LANGS} postTitle={postTitle} setPostTitle={setPostTitle} postLanguage={postLanguage} setPostLanguage={setPostLanguage} postContent={postContent} setPostContent={setPostContent} postNovel={postNovel} novels={novels} editingId={editingId} editTitle={editTitle} setEditTitle={setEditTitle} editLang={editLang} setEditLang={setEditLang} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} />} />
         <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupMembers={groupMembers} promote={promote} removeMember={removeMember} />} />
         <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} />} />
         <Route path="/notifications" element={<NotificationsView notifications={notifications} notifText={notifText} timeAgo={timeAgo} markRead={markRead} />} />

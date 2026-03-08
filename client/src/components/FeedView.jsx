@@ -4,7 +4,7 @@ export default function FeedView(props) {
   const {
     LANGS, postTitle, setPostTitle, postLanguage, setPostLanguage, postContent, setPostContent,
     postNovel, novels, editingId, editTitle, setEditTitle, editLang, setEditLang, editContent, setEditContent,
-    saveEdit, setEditingId, timeAgo, containsArabic, likeNovel, likeLoadingId, toggleComments, profile, startEdit, delNovel,
+    saveEdit, setEditingId, timeAgo, containsArabic, likeNovel, likeLoadingId, commentLoadingId, toggleComments, profile, startEdit, delNovel,
     commentCache, sendComment, onOpenPublish,
   } = props;
 
@@ -45,13 +45,13 @@ export default function FeedView(props) {
                       <span className="tag">{n.language}</span>
                     </div>
                     <h4 className={containsArabic(n.title) ? "arabic-text" : ""}>{n.title}</h4>
-                    <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p> <br />
+                    <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>
                     <div className="actions-row">
-                      <button type="button" className="action-btn" onClick={() => likeNovel(n.id)}>
-                        <FaHeart /> {n.likesCount}
+                      <button type="button" className="action-btn" onClick={() => likeNovel(n.id)} disabled={likeLoadingId === n.id}>
+                        {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
                       </button>
-                      <button type="button" className="action-btn" onClick={() => toggleComments(n.id)}>
-                        <FaComments /> {n.commentsCount}
+                      <button type="button" className="action-btn" onClick={() => toggleComments(n.id)} disabled={commentLoadingId === n.id}>
+                        {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
                       </button>
                       {n.authorUid === profile.uid && (
                         <>
@@ -74,7 +74,7 @@ export default function FeedView(props) {
                         ))}
                         <form onSubmit={(e) => sendComment(e, n.id)} className="row-form comment-form">
                           <input name="text" placeholder="Write comment" minLength={2} required />
-                          <button type="submit">Send</button>
+                          <button type="submit" disabled={commentLoadingId === n.id}>{commentLoadingId === n.id ? <span className="btn-spinner" /> : 'Send'}</button>
                         </form>
                       </div>
                     )}
