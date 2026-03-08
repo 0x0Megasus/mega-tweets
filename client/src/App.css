@@ -31,7 +31,7 @@ h1, h2, h3, h4 { margin: 0; }
 .btn-spinner { width: 14px; height: 14px; border: 2px solid #1116; border-top-color: #111; }
 .spinner { width: 34px; height: 34px; border: 3px solid #4b4f58; border-top-color: var(--accent); }
 
-.app-shell { width: min(1320px, calc(100% - 24px)); margin: 12px auto 20px; min-height: 100dvh; }
+.app-shell { width: min(1320px, calc(100% - 44px)); margin: 12px auto 20px; min-height: 90v; scroll-behavior: smooth; }
 .top-nav { position: sticky; top: 10px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: #232428; }
 .brand, .user-pill { display: flex; align-items: center; gap: 8px; }
 .tab-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; flex: 1; }
