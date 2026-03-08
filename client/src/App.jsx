@@ -14,7 +14,6 @@ import NotificationsView from "./components/NotificationsView";
 import ProfileView from "./components/ProfileView";
 import ConfirmLeaveModal from "./components/ConfirmLeaveModal";
 import PublishNovelModal from "./components/PublishNovelModal";
-import GroupMembersModal from "./components/GroupMembersModal";
 import NotFoundPage from "./components/NotFoundPage";
 
 const TABS = ["feed", "groups", "dm", "notifications", "profile"];
