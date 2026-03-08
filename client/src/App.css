@@ -723,6 +723,7 @@ h1, h2, h3, h4 { margin: 0; }
     padding: 7px 9px;
   }
   .replying-chip {
+    color: black;
     margin: 6px 0;
     padding: 5px 6px;
     font-size: 13px;
