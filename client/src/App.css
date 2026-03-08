@@ -109,7 +109,7 @@ h1, h2, h3, h4 { margin: 0; }
   border-left-color: rgba(169, 84, 16, 0.55);
 }
 .replying-chip { margin: 8px 0; display: flex; align-items: center; justify-content: space-between; border: 1px solid #4a4d55; border-radius: 6px; background: #2d3036; padding: 6px 8px; }
-.replying-chip button { width: 24px; height: 24px; padding: 0; }
+.replying-chip button { width: 24px; height: 24px; padding: 0; color: black; }
 
 .group-item, .user-item, .admin-member-row { justify-content: space-between; align-items: center; }
 .group-item.selected, .user-item.selected { border-color: var(--accent); background: #3a291c; }
@@ -724,7 +724,6 @@ h1, h2, h3, h4 { margin: 0; }
     padding: 7px 9px;
   }
   .replying-chip {
-    color: black;
     margin: 6px 0;
     padding: 5px 6px;
     font-size: 13px;
