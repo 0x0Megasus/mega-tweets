@@ -13,6 +13,8 @@ import DmView from "./components/DmView";
 import NotificationsView from "./components/NotificationsView";
 import ProfileView from "./components/ProfileView";
 import ConfirmLeaveModal from "./components/ConfirmLeaveModal";
+import PublishNovelModal from "./components/PublishNovelModal";
+import GroupMembersModal from "./components/GroupMembersModal";
 import NotFoundPage from "./components/NotFoundPage";
 
 const TABS = ["feed", "groups", "dm", "notifications", "profile"];
@@ -48,6 +50,7 @@ function App() {
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState("");
   const [isMobile, setIsMobile] = useState(window.innerWidth < 960);
+  const [showPublishModal, setShowPublishModal] = useState(false);
 
   const [profile, setProfile] = useState(null);
   const [users, setUsers] = useState([]);
@@ -78,12 +81,17 @@ function App() {
   const [inviteCodeInput, setInviteCodeInput] = useState("");
   const [pendingLeaveGroupId, setPendingLeaveGroupId] = useState("");
   const [mobileGroupPage, setMobileGroupPage] = useState("list");
+  const [showGroupMembers, setShowGroupMembers] = useState(false);
+  const [groupMessagesLoading, setGroupMessagesLoading] = useState(false);
 
   const [dmTargetUid, setDmTargetUid] = useState("");
   const [dmMessages, setDmMessages] = useState([]);
   const [dmDraft, setDmDraft] = useState("");
   const [dmReplyTo, setDmReplyTo] = useState(null);
   const [dmSending, setDmSending] = useState(false);
+  const [mobileDmPage, setMobileDmPage] = useState("list");
+  const [dmMessagesLoading, setDmMessagesLoading] = useState(false);
+  const [likeLoadingId, setLikeLoadingId] = useState("");
 
   const currentTab = useMemo(() => {
     const firstSegment = location.pathname.split("/")[1];
@@ -145,11 +153,18 @@ function App() {
   useEffect(() => {
     if (!token || !selectedGroup) return;
     let mounted = true;
-    const tick = async () => {
+    let timer;
+
+    const loadMessages = async () => {
       try {
-        const [members, messages] = await Promise.all([api.groupMembers(token, selectedGroup), api.groupMessages(token, selectedGroup)]);
+        setGroupMessagesLoading(true);
+        const [members, messages] = await Promise.all([
+          api.groupMembers(token, selectedGroup),
+          api.groupMessages(token, selectedGroup),
+        ]);
         if (!mounted) return;
-        setGroupMembers(members); setGroupMessages(messages);
+        setGroupMembers(members);
+        setGroupMessages(messages);
       } catch (e) {
         if (!mounted) return;
         if (String(e.message).includes("Join this group")) {
@@ -158,20 +173,44 @@ function App() {
           return;
         }
         setError(e.message);
+      } finally {
+        if (mounted) setGroupMessagesLoading(false);
       }
     };
-    tick();
-    const timer = setInterval(tick, 2000);
-    return () => { mounted = false; clearInterval(timer); };
+
+    loadMessages();
+    // Poll every 10 seconds instead of 2 for better performance
+    timer = setInterval(loadMessages, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
   }, [token, selectedGroup]);
 
   useEffect(() => {
     if (!token || !dmTargetUid) return;
     let mounted = true;
-    const tick = async () => { try { const messages = await api.dmMessages(token, dmTargetUid); if (mounted) setDmMessages(messages); } catch (e) { if (mounted) setError(e.message); } };
-    tick();
-    const timer = setInterval(tick, 2000);
-    return () => { mounted = false; clearInterval(timer); };
+    let timer;
+
+    const loadDmMessages = async () => {
+      try {
+        setDmMessagesLoading(true);
+        const messages = await api.dmMessages(token, dmTargetUid);
+        if (mounted) setDmMessages(messages);
+      } catch (e) {
+        if (mounted) setError(e.message);
+      } finally {
+        if (mounted) setDmMessagesLoading(false);
+      }
+    };
+
+    loadDmMessages();
+    // Poll every 10 seconds instead of 2 for better performance
+    timer = setInterval(loadDmMessages, 10000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
   }, [token, dmTargetUid]);
 
   const login = async () => {
@@ -208,7 +247,18 @@ function App() {
     catch (x) { setError(x.message); }
   };
 
-  const likeNovel = async (id) => { try { await withLoad(() => api.toggleLike(token, id)); await refreshNovels(); await refreshBase(); } catch (e) { setError(e.message); } };
+  const likeNovel = async (id) => {
+    try {
+      setLikeLoadingId(id);
+      await withLoad(() => api.toggleLike(token, id));
+      await refreshNovels();
+      await refreshBase();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLikeLoadingId("");
+    }
+  };
 
   const toggleComments = async (id) => {
     if (commentCache[id]) { setCommentCache((p) => { const n = { ...p }; delete n[id]; return n; }); return; }
@@ -304,17 +354,32 @@ function App() {
   return (
     <div className="app-shell">
       <TopNav tabs={TABS} tab={currentTab} setTab={(nextTab) => navigate(`/${nextTab}`)} profile={profile} firebaseUser={firebaseUser} onLogout={logout} />
-      {error && <p className="error-banner">{error}</p>}
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView LANGS={LANGS} postTitle={postTitle} setPostTitle={setPostTitle} postLanguage={postLanguage} setPostLanguage={setPostLanguage} postContent={postContent} setPostContent={setPostContent} postNovel={postNovel} novels={novels} editingId={editingId} editTitle={editTitle} setEditTitle={setEditTitle} editLang={editLang} setEditLang={setEditLang} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} />} />
-        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupMembers={groupMembers} promote={promote} removeMember={removeMember} />} />
-        <Route path="/dm" element={<DmView others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} />} />
+        <Route path="/feed" element={<FeedView LANGS={LANGS} postTitle={postTitle} setPostTitle={setPostTitle} postLanguage={postLanguage} setPostLanguage={setPostLanguage} postContent={postContent} setPostContent={setPostContent} postNovel={postNovel} novels={novels} editingId={editingId} editTitle={editTitle} setEditTitle={setEditTitle} editLang={editLang} setEditLang={setEditLang} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} />} />
+        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupMembers={groupMembers} promote={promote} removeMember={removeMember} />} />
+        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} />} />
         <Route path="/notifications" element={<NotificationsView notifications={notifications} notifText={notifText} timeAgo={timeAgo} markRead={markRead} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
+
+      <PublishNovelModal
+        isOpen={showPublishModal}
+        onClose={() => setShowPublishModal(false)}
+        LANGS={LANGS}
+        postTitle={postTitle}
+        setPostTitle={setPostTitle}
+        postLanguage={postLanguage}
+        setPostLanguage={setPostLanguage}
+        postContent={postContent}
+        setPostContent={setPostContent}
+        postNovel={(e) => {
+          postNovel(e);
+          setShowPublishModal(false);
+        }}
+      />
 
       {pendingLeaveGroupId && <ConfirmLeaveModal onConfirm={confirmLeaveDelete} onCancel={() => setPendingLeaveGroupId("")} />}
       {busy && !pendingLeaveGroupId && <div className="loading-overlay" role="status" aria-live="polite"><div className="spinner" /></div>}

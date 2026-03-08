@@ -257,6 +257,173 @@ h1, h2, h3, h4 { margin: 0; }
   background: #575b66;
 }
 
+/* Modal Styles */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.7);
+  padding: 16px;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-content {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.3s ease;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+}
+
+.modal-close-btn {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #f0f1f2;
+}
+
+.modal-close-btn:hover {
+  border-color: var(--accent);
+}
+
+.modal-form {
+  padding: 14px;
+  flex-grow: 1;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.modal-actions button {
+  flex: 1;
+}
+
+.secondary-btn {
+  height: 40px;
+  border: 1px solid #4a4d55;
+  background: var(--panel-2);
+  color: #f0f1f2;
+  border-radius: 6px;
+  font-weight: 600;
+  padding: 0 14px;
+  cursor: pointer;
+}
+
+.secondary-btn:hover {
+  border-color: var(--accent);
+}
+
+/* Feed layout with full width */
+.feed-layout-full {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-top: 12px;
+  height: 90vh;
+  max-height: 90vh;
+}
+
+.feed-layout-full .panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+}
+
+.feed-header h3 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+}
+
+.publish-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+.empty-state p {
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 @media (max-width: 1100px) {
@@ -278,7 +445,7 @@ h1, h2, h3, h4 { margin: 0; }
     flex-wrap: wrap;
     top: 0;
     gap: 6px;
-    padding: 6px 8px;
+    padding: 8px;
     border-radius: 6px;
   }
   .brand {
@@ -293,7 +460,7 @@ h1, h2, h3, h4 { margin: 0; }
   .tab-btn {
     min-width: 44px;
     width: 44px;
-    height: 28px;
+    height: 36px;
     font-size: 11px;
     padding: 0;
     gap: 0;
@@ -303,8 +470,8 @@ h1, h2, h3, h4 { margin: 0; }
     display: none;
   }
   .icon-btn {
-    width: 28px;
-    height: 28px;
+    width: 36px;
+    height: 36px;
   }
   .user-pill {
     width: auto;
@@ -316,7 +483,7 @@ h1, h2, h3, h4 { margin: 0; }
   .user-pill span {
     display: none;
   }
-  .grid-two, .groups-layout { grid-template-columns: 1fr; }
+  .grid-two, .groups-layout, .dm-layout { grid-template-columns: 1fr; }
   .feed-layout,
   .dm-layout,
   .groups-layout {
@@ -324,15 +491,21 @@ h1, h2, h3, h4 { margin: 0; }
     height: auto;
     max-height: none;
   }
+  .feed-layout-full {
+    margin-top: 6px;
+  }
   .app-shell > .feed-layout,
   .app-shell > .dm-layout,
-  .app-shell > .groups-layout {
+  .app-shell > .groups-layout,
+  .app-shell > .feed-layout-full {
     flex: 1;
     min-height: 0;
   }
   .panel.sticky { position: static; }
   .msg-bubble { max-width: 92%; }
-  .panel { padding: 10px; }
+  .panel { padding: 12px; }
+  .panel h3 { font-size: 16px; margin-bottom: 12px; }
+  .novel-card h4 { font-size: 17px; margin: 10px 0 8px; }
   .chat-panel .messages-box {
     height: auto;
     min-height: 0;
@@ -340,25 +513,318 @@ h1, h2, h3, h4 { margin: 0; }
   .chat-input-row {
     flex-shrink: 0;
   }
+  .stack-form input,
+  .stack-form select,
+  .stack-form textarea,
+  .row-form input,
+  .setup-card input,
+  .setup-card textarea {
+    padding: 11px 12px;
+    font-size: 16px;
+  }
+  .row-form button,
+  .actions-row button,
+  .primary-btn {
+    height: 40px;
+    font-size: 14px;
+    padding: 0 14px;
+  }
+  .modal-content {
+    max-width: 100%;
+    max-height: none;
+    height: auto;
+    max-height: 90vh;
+  }
 }
 
 @media (max-width: 640px) {
   .top-nav {
-    padding: 5px 6px;
+    padding: 8px;
+    gap: 8px;
+  }
+  .brand {
+    font-size: 12px;
   }
   .brand span {
     display: none;
   }
   .tab-btn {
-    flex: 0 0 38px;
-    width: 38px;
-    min-width: 38px;
-    height: 28px;
+    flex: 0 0 40px;
+    width: 40px;
+    min-width: 40px;
+    height: 36px;
     padding: 0;
-    font-size: 10px;
+    font-size: 11px;
   }
   .dm-user-item {
     justify-content: flex-start;
     text-align: left;
+    min-height: 42px;
+  }
+  .panel { padding: 14px; }
+  .panel h3 { font-size: 17px; margin-bottom: 14px; }
+  .cards {
+    gap: 10px;
+  }
+  .novel-card p,
+  .group-item p,
+  .message-item p {
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .modal-content {
+    max-width: 95vw;
+  }
+  .feed-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .publish-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 500px) {
+  .app-shell {
+    padding: 4px;
+  }
+  .top-nav {
+    padding: 10px 8px;
+    gap: 8px;
+    margin-bottom: 4px;
+  }
+  .brand {
+    font-size: 11px;
+  }
+  .brand svg {
+    width: 12px;
+    height: 12px;
+  }
+  .tab-row {
+    gap: 4px;
+  }
+  .tab-btn {
+    flex: 0 0 36px;
+    width: 36px;
+    min-width: 36px;
+    height: 32px;
+    font-size: 10px;
+  }
+  .icon-btn {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  .panel {
+    padding: 12px;
+  }
+  .panel h3 {
+    font-size: 16px;
+    margin-bottom: 12px;
+  }
+  .novel-card h4,
+  .group-item strong {
+    font-size: 15px;
+  }
+  .novel-card p,
+  .group-item p,
+  .message-item p {
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .novel-card small,
+  .message-item small,
+  .comment-item small {
+    font-size: 11px;
+  }
+  .tag {
+    font-size: 11px;
+    padding: 2px 6px;
+  }
+  .stack-form {
+    gap: 8px;
+  }
+  .stack-form input,
+  .stack-form select,
+  .stack-form textarea,
+  .row-form input,
+  .setup-card input,
+  .setup-card textarea {
+    padding: 10px;
+    font-size: 15px;
+  }
+  .stack-form textarea,
+  .setup-card textarea {
+    height: 80px;
+    min-height: 80px;
+    max-height: 80px;
+  }
+  .row-form button,
+  .actions-row button,
+  .primary-btn {
+    height: 38px;
+    font-size: 13px;
+    padding: 0 12px;
+  }
+  .row-form {
+    gap: 8px;
+  }
+  .chat-input-row {
+    padding: 6px;
+    gap: 6px;
+  }
+  .chat-input-row input {
+    min-height: 38px;
+    font-size: 15px;
+  }
+  .send-icon-btn {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+  }
+  .avatar {
+    width: 32px;
+    height: 32px;
+  }
+  .avatar-sm {
+    width: 26px;
+    height: 26px;
+  }
+  .avatar-lg {
+    width: 64px;
+    height: 64px;
+    margin-bottom: 8px;
+  }
+  .author-row {
+    gap: 6px;
+    font-size: 14px;
+  }
+  .meta-row {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .actions-row {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .actions-row button {
+    flex: 1;
+    min-width: 60px;
+  }
+  .reply-btn {
+    height: 28px;
+    font-size: 11px;
+    padding: 0 8px;
+    margin-left: 4px;
+  }
+  .msg-bubble {
+    max-width: 85%;
+    padding: 7px 9px;
+  }
+  .replying-chip {
+    margin: 6px 0;
+    padding: 5px 6px;
+    font-size: 13px;
+  }
+  .comment-form {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .comment-form input {
+    width: 100%;
+  }
+  .comment-form button {
+    width: 100%;
+  }
+  .dm-user-list {
+    gap: 4px;
+  }
+  .dm-user-item {
+    min-height: 40px;
+    padding: 4px 6px;
+  }
+  .dm-user-item .avatar {
+    width: 20px;
+    height: 20px;
+    margin-right: 4px;
+  }
+  .dm-user-item span {
+    font-size: 12px;
+  }
+  .avatar-msg {
+    width: 20px;
+    height: 20px;
+  }
+  .avatar-member {
+    width: 22px;
+    height: 22px;
+  }
+  .invite-link-row {
+    margin: 8px 0;
+    padding: 8px;
+    font-size: 12px;
+  }
+  .group-item {
+    padding: 10px;
+    margin-bottom: 4px;
+  }
+  .admin-badge {
+    font-size: 10px;
+  }
+  .back-btn {
+    height: 38px;
+    font-size: 13px;
+  }
+  .error-banner {
+    margin: 8px 0;
+    padding: 8px;
+    font-size: 13px;
+  }
+  .landing-card,
+  .setup-card,
+  .confirm-card {
+    width: min(95vw, 100%);
+    padding: 16px;
+  }
+  .confirm-card h4 {
+    font-size: 15px;
+    margin-bottom: 8px;
+  }
+  .confirm-card p {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  .modal-overlay {
+    padding: 12px;
+  }
+  .modal-content {
+    max-width: 100%;
+    border-radius: 12px;
+  }
+  .modal-header {
+    padding: 12px;
+  }
+  .modal-header h3 {
+    font-size: 16px;
+  }
+  .modal-form {
+    padding: 12px;
+  }
+  .modal-actions {
+    gap: 8px;
+  }
+  .modal-actions button {
+    font-size: 13px;
+    height: 36px;
+  }
+  .feed-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .publish-btn {
+    width: 100%;
+    justify-content: center;
   }
 }
