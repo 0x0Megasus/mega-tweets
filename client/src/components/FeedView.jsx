@@ -45,7 +45,7 @@ export default function FeedView(props) {
                       <span className="tag">{n.language}</span>
                     </div>
                     <h4 className={containsArabic(n.title) ? "arabic-text" : ""}>{n.title}</h4>
-                    <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>
+                    <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p> <br />
                     <div className="actions-row">
                       <button type="button" className="action-btn" onClick={() => likeNovel(n.id)}>
                         <FaHeart /> {n.likesCount}
