@@ -48,6 +48,8 @@ export const api = {
   promoteAdmin: (token, groupId, memberUid) => request(`/api/groups/${groupId}/admins/${memberUid}`, token, { method: "POST" }),
   removeMember: (token, groupId, memberUid) => request(`/api/groups/${groupId}/remove/${memberUid}`, token, { method: "POST" }),
   groupMessages: (token, groupId) => request(`/api/groups/${groupId}/messages`, token),
+  clearGroupMessages: (token, groupId) => request(`/api/groups/${groupId}/messages/clear`, token, { method: "POST" }),
+  updateGroupSettings: (token, groupId, payload) => request(`/api/groups/${groupId}/settings`, token, { method: "POST", body: JSON.stringify(payload) }),
   sendGroupMessage: (token, groupId, payload) =>
     request(`/api/groups/${groupId}/messages`, token, { method: "POST", body: JSON.stringify(payload) }),
   dmMessages: (token, otherUid) => request(`/api/dms/${otherUid}`, token),

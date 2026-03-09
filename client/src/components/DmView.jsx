@@ -9,6 +9,7 @@ import {
   FaReply,
   FaStop,
   FaUserCircle,
+  FaVideo,
   FaTimes,
 } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
@@ -21,6 +22,13 @@ const pickAvatar = (...values) => values.find((value) => typeof value === "strin
 const handleAvatarError = (e) => {
   e.currentTarget.onerror = null;
   e.currentTarget.src = FALLBACK_AVATAR;
+};
+const extensionFromDataUrl = (dataUrl, fallback = "bin") => {
+  if (!dataUrl?.startsWith("data:")) return fallback;
+  const mime = dataUrl.slice(5, dataUrl.indexOf(";"));
+  if (!mime.includes("/")) return fallback;
+  const ext = mime.split("/")[1];
+  return ext || fallback;
 };
 
 const NAME_COLORS = [
@@ -59,6 +67,8 @@ export default function DmView({
   setDmImageData,
   dmAudioData,
   setDmAudioData,
+  dmVideoData,
+  setDmVideoData,
   focusedDmMessageId,
   onOpenProfile,
 }) {
@@ -66,6 +76,7 @@ export default function DmView({
   const chatInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordingTimerRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -147,9 +158,12 @@ export default function DmView({
   }, [dmTargetUid, dmReplyTo, isMobile, mobileDmPage]);
 
   const isReplyToMe = (m) => m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid;
-  const toDataUrl = (file, maxBytes, onDone) => {
+  const toDataUrl = (file, maxBytes, onDone, label) => {
     if (!file) return;
-    if (file.size > maxBytes) return;
+    if (file.size > maxBytes) {
+      window.alert(`${label} is too large. Max size is ${(maxBytes / 1_000_000).toFixed(1)}MB.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => onDone(typeof reader.result === "string" ? reader.result : "");
     reader.readAsDataURL(file);
@@ -197,12 +211,16 @@ export default function DmView({
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         blobToDataUrl(blob, (data) => {
           setDmAudioData(data);
-          if (data) setDmImageData("");
+          if (data) {
+            setDmImageData("");
+            setDmVideoData("");
+          }
         });
         resetRecorder();
       };
       recorder.start();
       setDmAudioData("");
+      setDmVideoData("");
       setRecordingSeconds(0);
       setIsRecording(true);
       recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
@@ -285,7 +303,7 @@ export default function DmView({
                             onError={handleAvatarError}
                           />
                         </button>
-                        <div className={`msg-bubble ${m.imageData || m.audioData ? "has-media" : ""}`}>
+                        <div className={`msg-bubble ${m.imageData || m.audioData || m.videoData ? "has-media" : ""}`}>
                           <button
                             type="button"
                             className="profile-link-btn msg-user-link"
@@ -319,6 +337,12 @@ export default function DmView({
                             <div className="audio-wrap msg-media">
                               <ChatAudioPlayer src={m.audioData} />
                               <a href={m.audioData} download={`voice-${m.id || "dm"}.webm`} className="media-download">Download</a>
+                            </div>
+                          )}
+                          {m.videoData && (
+                            <div className="video-wrap msg-media">
+                              <video src={m.videoData} className="chat-media-video msg-media" controls preload="metadata" />
+                              <a href={m.videoData} download={`video-${m.id || "dm"}.${extensionFromDataUrl(m.videoData, "mp4")}`} className="media-download">Download</a>
                             </div>
                           )}
                           <small className="msg-time">{timeAgo(m.createdAt)}</small>
@@ -359,11 +383,14 @@ export default function DmView({
                   </button>
                 </div>
               )}
-              {(dmImageData || dmAudioData) && (
+              {(dmImageData || dmAudioData || dmVideoData) && (
                 <div className="attachment-preview-row">
                   {dmImageData && <img src={dmImageData} alt="Selected attachment" className="chat-media-image preview" />}
                   {dmAudioData && (
                     <ChatAudioPlayer src={dmAudioData} className="is-preview" />
+                  )}
+                  {dmVideoData && (
+                    <video src={dmVideoData} className="chat-media-video preview" controls preload="metadata" />
                   )}
                   <button
                     type="button"
@@ -371,6 +398,7 @@ export default function DmView({
                     onClick={() => {
                       setDmImageData("");
                       setDmAudioData("");
+                      setDmVideoData("");
                     }}
                   >
                     <FaTimes />
@@ -391,8 +419,11 @@ export default function DmView({
                   className="hidden-file-input"
                   onChange={(e) => toDataUrl(e.target.files?.[0], 1_000_000, (data) => {
                     setDmImageData(data);
-                    if (data) setDmAudioData("");
-                  })}
+                    if (data) {
+                      setDmAudioData("");
+                      setDmVideoData("");
+                    }
+                  }, "Image")}
                 />
                 <input
                   ref={audioInputRef}
@@ -401,8 +432,24 @@ export default function DmView({
                   className="hidden-file-input"
                   onChange={(e) => toDataUrl(e.target.files?.[0], 2_200_000, (data) => {
                     setDmAudioData(data);
-                    if (data) setDmImageData("");
-                  })}
+                    if (data) {
+                      setDmImageData("");
+                      setDmVideoData("");
+                    }
+                  }, "Audio")}
+                />
+                <input
+                  ref={videoInputRef}
+                  type="file"
+                  accept="video/*"
+                  className="hidden-file-input"
+                  onChange={(e) => toDataUrl(e.target.files?.[0], 4_500_000, (data) => {
+                    setDmVideoData(data);
+                    if (data) {
+                      setDmImageData("");
+                      setDmAudioData("");
+                    }
+                  }, "Video")}
                 />
                 <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
                   <FaImage />
@@ -422,6 +469,14 @@ export default function DmView({
                   title="Upload audio file"
                 >
                   <FaFileAudio />
+                </button>
+                <button
+                  type="button"
+                  className="icon-btn"
+                  onClick={() => videoInputRef.current?.click()}
+                  title="Upload video"
+                >
+                  <FaVideo />
                 </button>
                 <button type="submit" className="send-icon-btn" disabled={dmSending}>
                   {dmSending ? <span className="btn-spinner" /> : <FaPaperPlane />}

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { FaFileAudio, FaImage, FaMicrophone, FaPlus, FaStop, FaTimes } from "react-icons/fa";
+import { FaFileAudio, FaImage, FaMicrophone, FaPlus, FaStop, FaTimes, FaVideo } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
 
 export default function PublishTweetModal({
@@ -11,18 +11,25 @@ export default function PublishTweetModal({
   setPostImageData,
   postAudioData,
   setPostAudioData,
+  postVideoData,
+  setPostVideoData,
   postTweet,
 }) {
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordingTimerRef = useRef(null);
   const audioChunksRef = useRef([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
 
-  const toDataUrl = (file, maxBytes, onDone) => {
-    if (!file || file.size > maxBytes) return;
+  const toDataUrl = (file, maxBytes, onDone, label) => {
+    if (!file) return;
+    if (file.size > maxBytes) {
+      window.alert(`${label} is too large. Max size is ${(maxBytes / 1_000_000).toFixed(1)}MB.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => onDone(typeof reader.result === "string" ? reader.result : "");
     reader.readAsDataURL(file);
@@ -63,7 +70,10 @@ export default function PublishTweetModal({
         reader.onloadend = () => {
           const data = typeof reader.result === "string" ? reader.result : "";
           setPostAudioData(data);
-          if (data) setPostImageData("");
+          if (data) {
+            setPostImageData("");
+            setPostVideoData("");
+          }
         };
         reader.readAsDataURL(blob);
         resetRecorder();
@@ -98,11 +108,20 @@ export default function PublishTweetModal({
             placeholder="What's happening?"
             rows={8}
           />
-          {(postImageData || postAudioData) && (
+          {(postImageData || postAudioData || postVideoData) && (
             <div className="attachment-preview-row">
               {postImageData && <img src={postImageData} alt="Selected media" className="chat-media-image preview" />}
               {postAudioData && <ChatAudioPlayer src={postAudioData} className="is-preview" />}
-              <button type="button" className="icon-btn" onClick={() => { setPostImageData(""); setPostAudioData(""); }}>
+              {postVideoData && <video src={postVideoData} className="chat-media-video preview" controls preload="metadata" />}
+              <button
+                type="button"
+                className="icon-btn"
+                onClick={() => {
+                  setPostImageData("");
+                  setPostAudioData("");
+                  setPostVideoData("");
+                }}
+              >
                 <FaTimes />
               </button>
             </div>
@@ -115,8 +134,11 @@ export default function PublishTweetModal({
               className="hidden-file-input"
               onChange={(e) => toDataUrl(e.target.files?.[0], 1_000_000, (data) => {
                 setPostImageData(data);
-                if (data) setPostAudioData("");
-              })}
+                if (data) {
+                  setPostAudioData("");
+                  setPostVideoData("");
+                }
+              }, "Image")}
             />
             <input
               ref={audioInputRef}
@@ -125,8 +147,24 @@ export default function PublishTweetModal({
               className="hidden-file-input"
               onChange={(e) => toDataUrl(e.target.files?.[0], 2_200_000, (data) => {
                 setPostAudioData(data);
-                if (data) setPostImageData("");
-              })}
+                if (data) {
+                  setPostImageData("");
+                  setPostVideoData("");
+                }
+              }, "Audio")}
+            />
+            <input
+              ref={videoInputRef}
+              type="file"
+              accept="video/*"
+              className="hidden-file-input"
+              onChange={(e) => toDataUrl(e.target.files?.[0], 4_500_000, (data) => {
+                setPostVideoData(data);
+                if (data) {
+                  setPostImageData("");
+                  setPostAudioData("");
+                }
+              }, "Video")}
             />
             <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
               <FaImage />
@@ -140,6 +178,9 @@ export default function PublishTweetModal({
             </button>
             <button type="button" className="icon-btn" onClick={() => audioInputRef.current?.click()}>
               <FaFileAudio />
+            </button>
+            <button type="button" className="icon-btn" onClick={() => videoInputRef.current?.click()} title="Upload video">
+              <FaVideo />
             </button>
             {isRecording && <small>Recording {recordingSeconds}s</small>}
           </div>

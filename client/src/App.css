@@ -205,6 +205,19 @@ h1, h2, h3, h4 { margin: 0; }
 .feed-media-audio {
   margin-top: 8px;
 }
+.feed-media-video-wrap {
+  margin-top: 8px;
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+}
+.feed-media-video {
+  max-width: min(100%, 420px);
+  max-height: 360px;
+  border-radius: 8px;
+  border: 1px solid #4a4d55;
+  background: #1a1d22;
+}
 .fb-comments { margin-top: 10px; padding-top: 10px; border-top: 1px solid #4a4d55; }
 .comment-form { margin-top: 10px; }
 
@@ -332,6 +345,19 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .chat-media-image.preview { max-width: 120px; max-height: 120px; margin-top: 0; }
 .chat-media-audio { width: min(100%, 300px); margin-top: 6px; }
+.chat-media-video {
+  max-width: min(100%, 280px);
+  max-height: 240px;
+  border-radius: 8px;
+  border: 1px solid #4a4d55;
+  margin-top: 4px;
+  background: #15181d;
+}
+.chat-media-video.preview {
+  max-width: 220px;
+  max-height: 140px;
+  margin-top: 0;
+}
 .attachment-preview-row {
   margin: 8px 0;
   border: 1px solid #4a4d55;
@@ -399,6 +425,18 @@ h1, h2, h3, h4 { margin: 0; }
   border-right: 0;
   border-radius: 6px;
 }
+.msg-bubble.has-media .chat-media-video.msg-media {
+  display: block;
+  width: calc(100% + 12px);
+  max-width: calc(100% + 12px);
+  margin-left: -6px;
+  margin-right: -6px;
+  margin-top: 4px;
+  margin-bottom: 2px;
+  border-left: 0;
+  border-right: 0;
+  border-radius: 6px;
+}
 .media-actions {
   display: flex;
   gap: 8px;
@@ -418,6 +456,11 @@ h1, h2, h3, h4 { margin: 0; }
   color: #fbbf24;
 }
 .audio-wrap {
+  display: grid;
+  gap: 2px;
+  align-items: center;
+}
+.video-wrap {
   display: grid;
   gap: 2px;
   align-items: center;
@@ -564,6 +607,28 @@ h1, h2, h3, h4 { margin: 0; }
   }
 .invite-link-row { margin: 8px 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #4a4d55; border-radius: 6px; background: #2d3036; padding: 8px; }
 .invite-link-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.group-admin-tools {
+  margin: 0 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.group-admin-tools button {
+  height: 30px;
+  border: 1px solid #4a4d55;
+  border-radius: 6px;
+  background: #2f3339;
+  color: #f0f1f2;
+  padding: 0 10px;
+  cursor: pointer;
+}
+.group-auto-delete-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: #d4d8de;
+  font-size: 13px;
+}
 .admin-box {
   display: grid;
   gap: 6px;

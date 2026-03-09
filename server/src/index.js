@@ -98,6 +98,21 @@ async function isGroupAdmin(groupId, uid) {
   return snapshot.exists();
 }
 
+async function pruneOldGroupMessages(groupId, maxAgeMs = 24 * 60 * 60 * 1000) {
+  const snapshot = await db.ref(`groupMessages/${groupId}`).get();
+  if (!snapshot.exists()) return;
+  const messages = snapshot.val() || {};
+  const now = Date.now();
+  const removals = Object.entries(messages)
+    .filter(([, value]) => {
+      const createdAt = new Date(value?.createdAt || "").getTime();
+      if (Number.isNaN(createdAt)) return false;
+      return now - createdAt > maxAgeMs;
+    })
+    .map(([id]) => db.ref(`groupMessages/${groupId}/${id}`).remove());
+  if (removals.length) await Promise.all(removals);
+}
+
 const authRequired = asyncHandler(async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
@@ -249,8 +264,9 @@ app.post("/api/tweets", asyncHandler(async (req, res) => {
   const content = sanitizeText(req.body?.content, 6000);
   const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
   const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
+  const videoData = sanitizeDataUrl(req.body?.videoData, "data:video/", 6_500_000);
 
-  if (content.length < 2 && !imageData && !audioData) {
+  if (content.length < 2 && !imageData && !audioData && !videoData) {
     return res.status(400).json({ error: "Tweet text or attachment is required" });
   }
 
@@ -268,6 +284,7 @@ app.post("/api/tweets", asyncHandler(async (req, res) => {
     content,
     imageData,
     audioData,
+    videoData,
     createdAt: nowIso(),
   };
 
@@ -452,6 +469,7 @@ app.post("/api/groups", asyncHandler(async (req, res) => {
     creatorUid: req.user.uid,
     creatorNickname: profile.nickname,
     inviteCode: createInviteCode(),
+    autoDelete24h: false,
     createdAt: nowIso(),
   };
 
@@ -595,11 +613,38 @@ app.post("/api/groups/:groupId/remove/:memberUid", asyncHandler(async (req, res)
   return res.json({ ok: true });
 }));
 
+app.post("/api/groups/:groupId/messages/clear", asyncHandler(async (req, res) => {
+  const { groupId } = req.params;
+  const requesterIsAdmin = await isGroupAdmin(groupId, req.user.uid);
+  if (!requesterIsAdmin) {
+    return res.status(403).json({ error: "Only admins can clear messages" });
+  }
+  await db.ref(`groupMessages/${groupId}`).remove();
+  return res.json({ ok: true });
+}));
+
+app.post("/api/groups/:groupId/settings", asyncHandler(async (req, res) => {
+  const { groupId } = req.params;
+  const requesterIsAdmin = await isGroupAdmin(groupId, req.user.uid);
+  if (!requesterIsAdmin) {
+    return res.status(403).json({ error: "Only admins can update group settings" });
+  }
+  const autoDelete24h = req.body?.autoDelete24h === true;
+  await db.ref(`groups/${groupId}/autoDelete24h`).set(autoDelete24h);
+  return res.json({ ok: true, autoDelete24h });
+}));
+
 app.get("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
+  const groupSnap = await db.ref(`groups/${req.params.groupId}`).get();
+  if (!groupSnap.exists()) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const memberSnap = await db.ref(`groupMembers/${req.params.groupId}/${req.user.uid}`).get();
   if (!memberSnap.exists()) {
     return res.status(403).json({ error: "Join this group to view messages" });
   }
+  const group = groupSnap.val() || {};
+  if (group.autoDelete24h) await pruneOldGroupMessages(req.params.groupId);
 
   const snapshot = await db.ref(`groupMessages/${req.params.groupId}`).get();
   const messages = snapshot.exists() ? snapshot.val() : {};
@@ -615,8 +660,9 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
   const text = sanitizeText(req.body?.text, 1200);
   const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
   const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
+  const videoData = sanitizeDataUrl(req.body?.videoData, "data:video/", 6_500_000);
   const replyToMessageId = sanitizeText(req.body?.replyToMessageId, 120);
-  if (text.length < 1 && !imageData && !audioData) {
+  if (text.length < 1 && !imageData && !audioData && !videoData) {
     return res.status(400).json({ error: "Message or attachment is required" });
   }
 
@@ -624,6 +670,12 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
   if (!memberSnap.exists()) {
     return res.status(403).json({ error: "Join this group before sending messages" });
   }
+  const groupSnap = await db.ref(`groups/${req.params.groupId}`).get();
+  if (!groupSnap.exists()) {
+    return res.status(404).json({ error: "Group not found" });
+  }
+  const group = groupSnap.val() || {};
+  if (group.autoDelete24h) await pruneOldGroupMessages(req.params.groupId);
 
   const profile = await getProfile(req.user.uid);
   const msgRef = db.ref(`groupMessages/${req.params.groupId}`).push();
@@ -647,6 +699,7 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
     text,
     imageData,
     audioData,
+    videoData,
     replyTo,
     createdAt: nowIso(),
   };
@@ -658,7 +711,7 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
       groupId: req.params.groupId,
     });
     if (!isActiveInGroup) {
-      const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
+      const replyPreview = text || (imageData ? "Sent an image" : (videoData ? "Sent a video" : "Sent a voice message"));
       await createNotification(replyTo.senderUid, "group_reply", {
         groupId: req.params.groupId,
         messageId: msgRef.key,
@@ -690,9 +743,10 @@ app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
   const text = sanitizeText(req.body?.text, 1200);
   const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
   const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
+  const videoData = sanitizeDataUrl(req.body?.videoData, "data:video/", 6_500_000);
   const replyToMessageId = sanitizeText(req.body?.replyToMessageId, 120);
 
-  if (text.length < 1 && !imageData && !audioData) {
+  if (text.length < 1 && !imageData && !audioData && !videoData) {
     return res.status(400).json({ error: "Message or attachment is required" });
   }
 
@@ -726,6 +780,7 @@ app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
     text,
     imageData,
     audioData,
+    videoData,
     replyTo,
     createdAt: nowIso(),
   };
@@ -737,7 +792,7 @@ app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
       otherUid: req.user.uid,
     });
     if (!isActiveInDm) {
-      const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
+      const replyPreview = text || (imageData ? "Sent an image" : (videoData ? "Sent a video" : "Sent a voice message"));
       await createNotification(replyTo.senderUid, "dm_reply", {
         messageId: msgRef.key,
         repliedToMessageId: replyToMessageId,

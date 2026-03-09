@@ -55,6 +55,7 @@ function App() {
   const [postContent, setPostContent] = useState("");
   const [postImageData, setPostImageData] = useState("");
   const [postAudioData, setPostAudioData] = useState("");
+  const [postVideoData, setPostVideoData] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editContent, setEditContent] = useState("");
 
@@ -67,6 +68,7 @@ function App() {
   const [groupSending, setGroupSending] = useState(false);
   const [groupImageData, setGroupImageData] = useState("");
   const [groupAudioData, setGroupAudioData] = useState("");
+  const [groupVideoData, setGroupVideoData] = useState("");
   const [groupName, setGroupName] = useState("");
   const [groupDesc, setGroupDesc] = useState("");
   const [inviteCodeInput, setInviteCodeInput] = useState("");
@@ -75,6 +77,7 @@ function App() {
   const [showGroupMembers, setShowGroupMembers] = useState(false);
   const [groupMessagesLoading, setGroupMessagesLoading] = useState(false);
   const [focusedGroupMessageId, setFocusedGroupMessageId] = useState("");
+  const [groupSettingsSaving, setGroupSettingsSaving] = useState(false);
 
   const [dmTargetUid, setDmTargetUid] = useState("");
   const [dmMessages, setDmMessages] = useState([]);
@@ -83,6 +86,7 @@ function App() {
   const [dmSending, setDmSending] = useState(false);
   const [dmImageData, setDmImageData] = useState("");
   const [dmAudioData, setDmAudioData] = useState("");
+  const [dmVideoData, setDmVideoData] = useState("");
   const [mobileDmPage, setMobileDmPage] = useState("list");
   const [dmMessagesLoading, setDmMessagesLoading] = useState(false);
   const [focusedDmMessageId, setFocusedDmMessageId] = useState("");
@@ -576,15 +580,21 @@ function App() {
   const postTweet = async (e) => {
     e.preventDefault();
     const content = postContent.trim();
-    if (content.length < 2 && !postImageData && !postAudioData) {
+    if (content.length < 2 && !postImageData && !postAudioData && !postVideoData) {
       setError("Tweet content must be at least 2 characters or include media");
       return;
     }
     try {
-      await withLoad(() => api.createTweet(token, { content, imageData: postImageData, audioData: postAudioData }));
+      await withLoad(() => api.createTweet(token, {
+        content,
+        imageData: postImageData,
+        audioData: postAudioData,
+        videoData: postVideoData,
+      }));
       setPostContent("");
       setPostImageData("");
       setPostAudioData("");
+      setPostVideoData("");
       await refreshTweets();
     }
     catch (x) { setError(x.message); }
@@ -675,23 +685,42 @@ function App() {
   const joinByCode = async (e) => { e.preventDefault(); if (!inviteCodeInput.trim()) return; try { await withLoad(() => api.joinByCode(token, inviteCodeInput.trim().split("/").pop())); setInviteCodeInput(""); await refreshBase(); } catch (x) { setError(x.message); } };
   const promote = async (uid) => { try { await withLoad(() => api.promoteAdmin(token, selectedGroup, uid)); setGroupMembers(await withLoad(() => api.groupMembers(token, selectedGroup))); await refreshBase(); } catch (x) { setError(x.message); } };
   const removeMember = async (uid) => { try { await withLoad(() => api.removeMember(token, selectedGroup, uid)); setGroupMembers(await withLoad(() => api.groupMembers(token, selectedGroup))); await refreshBase(); } catch (x) { setError(x.message); } };
+  const clearGroupMessages = async () => {
+    if (!selectedGroup) return;
+    if (!window.confirm("Delete all messages in this group chat?")) return;
+    try {
+      await withLoad(() => api.clearGroupMessages(token, selectedGroup));
+      setGroupMessages([]);
+    } catch (x) { setError(x.message); }
+  };
+  const toggleGroupAutoDelete = async (enabled) => {
+    if (!selectedGroup) return;
+    try {
+      setGroupSettingsSaving(true);
+      await withLoad(() => api.updateGroupSettings(token, selectedGroup, { autoDelete24h: enabled }));
+      setGroups((prev) => prev.map((g) => (g.id === selectedGroup ? { ...g, autoDelete24h: enabled } : g)));
+    } catch (x) { setError(x.message); }
+    finally { setGroupSettingsSaving(false); }
+  };
 
   const sendGroup = async (e) => {
     e.preventDefault();
     const text = groupDraft.trim();
-    if ((!text && !groupImageData && !groupAudioData) || !selectedGroup || groupSending) return;
+    if ((!text && !groupImageData && !groupAudioData && !groupVideoData) || !selectedGroup || groupSending) return;
     try {
       setGroupSending(true);
       const created = await api.sendGroupMessage(token, selectedGroup, {
         text,
         imageData: groupImageData,
         audioData: groupAudioData,
+        videoData: groupVideoData,
         replyToMessageId: groupReplyTo?.id || "",
       });
       setGroupMessages((prev) => [...prev, created]);
       setGroupDraft("");
       setGroupImageData("");
       setGroupAudioData("");
+      setGroupVideoData("");
       setGroupReplyTo(null);
     }
     catch (x) { setError(x.message); }
@@ -701,19 +730,21 @@ function App() {
   const sendDm = async (e) => {
     e.preventDefault();
     const text = dmDraft.trim();
-    if ((!text && !dmImageData && !dmAudioData) || !dmTargetUid || dmSending) return;
+    if ((!text && !dmImageData && !dmAudioData && !dmVideoData) || !dmTargetUid || dmSending) return;
     try {
       setDmSending(true);
       const created = await api.sendDm(token, dmTargetUid, {
         text,
         imageData: dmImageData,
         audioData: dmAudioData,
+        videoData: dmVideoData,
         replyToMessageId: dmReplyTo?.id || "",
       });
       setDmMessages((prev) => [...prev, created]);
       setDmDraft("");
       setDmImageData("");
       setDmAudioData("");
+      setDmVideoData("");
       setDmReplyTo(null);
     }
     catch (x) { setError(x.message); }
@@ -782,8 +813,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
         <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delTweet={delTweet} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
-        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
-        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
+        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} />} />
+        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
         <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} />} />
         <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} startEdit={startEdit} delTweet={delTweet} commentCache={commentCache} sendComment={sendComment} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
@@ -799,6 +830,8 @@ function App() {
         setPostImageData={setPostImageData}
         postAudioData={postAudioData}
         setPostAudioData={setPostAudioData}
+        postVideoData={postVideoData}
+        setPostVideoData={setPostVideoData}
         postTweet={(e) => {
           postTweet(e);
           setShowPublishModal(false);

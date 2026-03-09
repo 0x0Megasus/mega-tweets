@@ -11,6 +11,7 @@ import {
   FaReply,
   FaStop,
   FaUsers,
+  FaVideo,
   FaTimes,
 } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
@@ -23,6 +24,13 @@ const pickAvatar = (...values) => values.find((value) => typeof value === "strin
 const handleAvatarError = (e) => {
   e.currentTarget.onerror = null;
   e.currentTarget.src = FALLBACK_AVATAR;
+};
+const extensionFromDataUrl = (dataUrl, fallback = "bin") => {
+  if (!dataUrl?.startsWith("data:")) return fallback;
+  const mime = dataUrl.slice(5, dataUrl.indexOf(";"));
+  if (!mime.includes("/")) return fallback;
+  const ext = mime.split("/")[1];
+  return ext || fallback;
 };
 
 export default function GroupsView(props) {
@@ -56,18 +64,24 @@ export default function GroupsView(props) {
     setGroupImageData,
     groupAudioData,
     setGroupAudioData,
+    groupVideoData,
+    setGroupVideoData,
     groupMembers,
     promote,
     removeMember,
     groupMessagesLoading,
     focusedGroupMessageId,
     onOpenProfile,
+    clearGroupMessages,
+    toggleGroupAutoDelete,
+    groupSettingsSaving,
   } = props;
 
   const listRef = useRef(null);
   const chatInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
+  const videoInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const recordingTimerRef = useRef(null);
   const audioChunksRef = useRef([]);
@@ -118,9 +132,12 @@ export default function GroupsView(props) {
   };
 
   const isReplyToMe = (m) => m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid;
-  const toDataUrl = (file, maxBytes, onDone) => {
+  const toDataUrl = (file, maxBytes, onDone, label) => {
     if (!file) return;
-    if (file.size > maxBytes) return;
+    if (file.size > maxBytes) {
+      window.alert(`${label} is too large. Max size is ${(maxBytes / 1_000_000).toFixed(1)}MB.`);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => onDone(typeof reader.result === "string" ? reader.result : "");
     reader.readAsDataURL(file);
@@ -168,12 +185,16 @@ export default function GroupsView(props) {
         const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
         blobToDataUrl(blob, (data) => {
           setGroupAudioData(data);
-          if (data) setGroupImageData("");
+          if (data) {
+            setGroupImageData("");
+            setGroupVideoData("");
+          }
         });
         resetRecorder();
       };
       recorder.start();
       setGroupAudioData("");
+      setGroupVideoData("");
       setRecordingSeconds(0);
       setIsRecording(true);
       recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
@@ -320,6 +341,22 @@ export default function GroupsView(props) {
                     </button>
                   </div>
                 )}
+                {selectedGroupData.isAdmin && (
+                  <div className="group-admin-tools">
+                    <button type="button" onClick={clearGroupMessages} disabled={groupSettingsSaving}>
+                      Clear messages
+                    </button>
+                    <label className="group-auto-delete-toggle">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(selectedGroupData.autoDelete24h)}
+                        disabled={groupSettingsSaving}
+                        onChange={(e) => toggleGroupAutoDelete(e.target.checked)}
+                      />
+                      Auto-delete 24h
+                    </label>
+                  </div>
+                )}
                 <div className="messages-wrap">
                   <div ref={listRef} className="messages-box">
                     {groupMessagesLoading ? (
@@ -350,7 +387,7 @@ export default function GroupsView(props) {
                               onError={handleAvatarError}
                             />
                           </button>
-                          <div className={`msg-bubble ${m.imageData || m.audioData ? "has-media" : ""}`}>
+                          <div className={`msg-bubble ${m.imageData || m.audioData || m.videoData ? "has-media" : ""}`}>
                             <button
                               type="button"
                               className="profile-link-btn msg-user-link"
@@ -384,6 +421,12 @@ export default function GroupsView(props) {
                               <div className="audio-wrap msg-media">
                                 <ChatAudioPlayer src={m.audioData} />
                                 <a href={m.audioData} download={`voice-${m.id || "group"}.webm`} className="media-download">Download</a>
+                              </div>
+                            )}
+                            {m.videoData && (
+                              <div className="video-wrap msg-media">
+                                <video src={m.videoData} className="chat-media-video msg-media" controls preload="metadata" />
+                                <a href={m.videoData} download={`video-${m.id || "group"}.${extensionFromDataUrl(m.videoData, "mp4")}`} className="media-download">Download</a>
                               </div>
                             )}
                             <small className="msg-time">{timeAgo(m.createdAt)}</small>
@@ -424,11 +467,14 @@ export default function GroupsView(props) {
                     </button>
                   </div>
                 )}
-                {(groupImageData || groupAudioData) && (
+                {(groupImageData || groupAudioData || groupVideoData) && (
                   <div className="attachment-preview-row">
                     {groupImageData && <img src={groupImageData} alt="Selected attachment" className="chat-media-image preview" />}
                     {groupAudioData && (
                       <ChatAudioPlayer src={groupAudioData} className="is-preview" />
+                    )}
+                    {groupVideoData && (
+                      <video src={groupVideoData} className="chat-media-video preview" controls preload="metadata" />
                     )}
                     <button
                       type="button"
@@ -436,6 +482,7 @@ export default function GroupsView(props) {
                       onClick={() => {
                         setGroupImageData("");
                         setGroupAudioData("");
+                        setGroupVideoData("");
                       }}
                     >
                       <FaTimes />
@@ -456,8 +503,11 @@ export default function GroupsView(props) {
                     className="hidden-file-input"
                     onChange={(e) => toDataUrl(e.target.files?.[0], 1_000_000, (data) => {
                       setGroupImageData(data);
-                      if (data) setGroupAudioData("");
-                    })}
+                      if (data) {
+                        setGroupAudioData("");
+                        setGroupVideoData("");
+                      }
+                    }, "Image")}
                   />
                   <input
                     ref={audioInputRef}
@@ -466,8 +516,24 @@ export default function GroupsView(props) {
                     className="hidden-file-input"
                     onChange={(e) => toDataUrl(e.target.files?.[0], 2_200_000, (data) => {
                       setGroupAudioData(data);
-                      if (data) setGroupImageData("");
-                    })}
+                      if (data) {
+                        setGroupImageData("");
+                        setGroupVideoData("");
+                      }
+                    }, "Audio")}
+                  />
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden-file-input"
+                    onChange={(e) => toDataUrl(e.target.files?.[0], 4_500_000, (data) => {
+                      setGroupVideoData(data);
+                      if (data) {
+                        setGroupImageData("");
+                        setGroupAudioData("");
+                      }
+                    }, "Video")}
                   />
                   <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
                     <FaImage />
@@ -487,6 +553,14 @@ export default function GroupsView(props) {
                     title="Upload audio file"
                   >
                     <FaFileAudio />
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => videoInputRef.current?.click()}
+                    title="Upload video"
+                  >
+                    <FaVideo />
                   </button>
                   <button type="submit" className="send-icon-btn" disabled={groupSending}>
                     {groupSending ? <span className="btn-spinner" /> : <FaPaperPlane />}

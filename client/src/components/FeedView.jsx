@@ -11,6 +11,13 @@ const handleAvatarError = (e) => {
   e.currentTarget.onerror = null;
   e.currentTarget.src = FALLBACK_AVATAR;
 };
+const extensionFromDataUrl = (dataUrl, fallback = "bin") => {
+  if (!dataUrl?.startsWith("data:")) return fallback;
+  const mime = dataUrl.slice(5, dataUrl.indexOf(";"));
+  if (!mime.includes("/")) return fallback;
+  const ext = mime.split("/")[1];
+  return ext || fallback;
+};
 
 export default function FeedView(props) {
   const {
@@ -136,6 +143,14 @@ export default function FeedView(props) {
                     {Boolean(n.content) && <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>}
                     {n.imageData && <img src={n.imageData} alt="Tweet media" className="feed-media-image" />}
                     {n.audioData && <ChatAudioPlayer src={n.audioData} className="feed-media-audio" />}
+                    {n.videoData && (
+                      <div className="feed-media-video-wrap">
+                        <video src={n.videoData} className="feed-media-video" controls preload="metadata" />
+                        <a href={n.videoData} download={`tweet-video-${n.id}.${extensionFromDataUrl(n.videoData, "mp4")}`} className="media-download">
+                          Download
+                        </a>
+                      </div>
+                    )}
                     <div className="actions-row">
                       <button type="button" className="action-btn" onClick={() => likeTweet(n.id)} disabled={likeLoadingId === n.id}>
                         {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
