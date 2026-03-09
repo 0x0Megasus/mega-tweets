@@ -25,6 +25,7 @@ export default function PostCommentsModal({
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
   const listRef = useRef(null);
+  const inputRef = useRef(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -40,6 +41,12 @@ export default function PostCommentsModal({
     setDraft("");
     setReplyTo(null);
   }, [isOpen, tweet?.id]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const timer = setTimeout(() => inputRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [isOpen, replyTo?.id]);
 
   const commentsByParent = useMemo(() => {
     const map = {};
@@ -144,6 +151,7 @@ export default function PostCommentsModal({
 
           <form className="row-form comment-compose-row" onSubmit={submitComment}>
             <input
+              ref={inputRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               placeholder={replyTo ? `Reply to ${replyTo.authorNickname}` : "Write a comment"}

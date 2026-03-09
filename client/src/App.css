@@ -1127,10 +1127,12 @@ h1, h2, h3, h4 { margin: 0; }
   margin-top: 6px;
 }
 .comments-modal {
-  width: min(1120px, 98vw);
+  width: min(1120px, calc(100vw - 24px));
+  max-width: calc(100vw - 24px);
   max-height: 96vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 .comments-modal-body {
   min-height: 0;
@@ -1138,6 +1140,7 @@ h1, h2, h3, h4 { margin: 0; }
   flex-direction: column;
   gap: 10px;
   padding: 10px;
+  overflow: hidden;
 }
 .comments-focus-post {
   border: 1px solid #454953;
@@ -1155,7 +1158,7 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .comments-thread {
   flex: 1;
-  min-height: 360px;
+  min-height: 0;
   overflow-y: auto;
   display: grid;
   gap: 6px;
@@ -1209,6 +1212,14 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .comment-compose-row {
   flex-shrink: 0;
+  position: sticky;
+  bottom: 0;
+  background: #2b2d31;
+  padding-top: 0;
+  z-index: 2;
+}
+.comment-replying-chip {
+  margin: 2px 0 4px;
 }
 
 .feed-layout-full .cards::-webkit-scrollbar {
