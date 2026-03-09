@@ -657,7 +657,8 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
       const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
       await createNotification(replyTo.senderUid, "group_reply", {
         groupId: req.params.groupId,
-        messageId: replyToMessageId,
+        messageId: msgRef.key,
+        repliedToMessageId: replyToMessageId,
         actorUid: req.user.uid,
         actorNickname: profile?.nickname || "Unknown",
         actorPhotoURL: profile?.photoURL || req.user.picture || "",
@@ -734,7 +735,8 @@ app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
     if (!isActiveInDm) {
       const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
       await createNotification(replyTo.senderUid, "dm_reply", {
-        messageId: replyToMessageId,
+        messageId: msgRef.key,
+        repliedToMessageId: replyToMessageId,
         actorUid: req.user.uid,
         actorNickname: senderProfile?.nickname || "Unknown",
         actorPhotoURL: senderProfile?.photoURL || req.user.picture || "",
