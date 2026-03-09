@@ -46,6 +46,13 @@ export default function FeedView(props) {
     return () => document.removeEventListener("click", onDocClick);
   }, [openMenuId]);
 
+  const postDownloadInfo = (post) => {
+    if (post.videoData) return { href: post.videoData, filename: `tweet-video-${post.id}.${extensionFromDataUrl(post.videoData, "mp4")}` };
+    if (post.imageData) return { href: post.imageData, filename: `tweet-image-${post.id}.${extensionFromDataUrl(post.imageData, "png")}` };
+    if (post.audioData) return { href: post.audioData, filename: `tweet-audio-${post.id}.${extensionFromDataUrl(post.audioData, "webm")}` };
+    return null;
+  };
+
   return (
     <section className="feed-layout-full">
       <article className="panel">
@@ -71,101 +78,112 @@ export default function FeedView(props) {
                   if (el) postRefs.current[n.id] = el;
                 }}
               >
-                {editingId === n.id ? (
-                  <form onSubmit={(e) => saveEdit(e, n.id)} className="stack-form">
-                    <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} minLength={2} rows={6} required />
-                    <div className="actions-row"><button type="submit">Save</button><button type="button" onClick={() => setEditingId("")}>Cancel</button></div>
-                  </form>
-                ) : (
-                  <>
-                    <div className="meta-row">
-                      <button
-                        type="button"
-                        className="author-row author-btn"
-                        onClick={() => onOpenProfile?.(n.authorUid)}
-                      >
-                        <img
-                          src={pickAvatar(
-                            n.authorPhotoURL,
-                            n.authorPhotoUrl,
-                            n.photoURL,
-                            n.photoUrl,
-                            userByUid[n.authorUid]?.photoURL,
-                            userByUid[n.authorUid]?.photoUrl,
-                          )}
-                          alt={n.authorNickname}
-                          className="avatar"
-                          onError={handleAvatarError}
-                        />
-                        <div>
-                          <strong>{n.authorNickname}</strong>
-                          <small> {timeAgo(n.createdAt)}</small>
-                        </div>
-                      </button>
-                      {n.authorUid === profile.uid && (
-                        <div className="owner-options" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            className="owner-options-btn"
-                            onClick={() => setOpenMenuId((prev) => (prev === n.id ? "" : n.id))}
-                            aria-label="Post options"
-                          >
-                            <FaEllipsisH />
-                          </button>
-                          {openMenuId === n.id && (
-                            <div className="owner-options-menu">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (!window.confirm("Edit this post?")) return;
-                                  startEdit(n);
-                                  setOpenMenuId("");
-                                }}
-                              >
-                                Edit
-                              </button>
-                              <button
-                                type="button"
-                                className="danger"
-                                onClick={() => {
-                                  if (!window.confirm("Delete this post permanently?")) return;
-                                  delTweet(n.id);
-                                  setOpenMenuId("");
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          )}
+                {(() => {
+                  const isOwner = n.authorUid === profile.uid;
+                  const download = postDownloadInfo(n);
+                  const hasOptions = isOwner || Boolean(download);
+                  return editingId === n.id ? (
+                    <form onSubmit={(e) => saveEdit(e, n.id)} className="stack-form">
+                      <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} minLength={2} rows={6} required />
+                      <div className="actions-row"><button type="submit">Save</button><button type="button" onClick={() => setEditingId("")}>Cancel</button></div>
+                    </form>
+                  ) : (
+                    <>
+                      <div className="meta-row">
+                        <button
+                          type="button"
+                          className="author-row author-btn"
+                          onClick={() => onOpenProfile?.(n.authorUid)}
+                        >
+                          <img
+                            src={pickAvatar(
+                              n.authorPhotoURL,
+                              n.authorPhotoUrl,
+                              n.photoURL,
+                              n.photoUrl,
+                              userByUid[n.authorUid]?.photoURL,
+                              userByUid[n.authorUid]?.photoUrl,
+                            )}
+                            alt={n.authorNickname}
+                            className="avatar"
+                            onError={handleAvatarError}
+                          />
+                          <div>
+                            <strong>{n.authorNickname}</strong>
+                            <small> {timeAgo(n.createdAt)}</small>
+                          </div>
+                        </button>
+                        {hasOptions && (
+                          <div className="owner-options" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              type="button"
+                              className="owner-options-btn"
+                              onClick={() => setOpenMenuId((prev) => (prev === n.id ? "" : n.id))}
+                              aria-label="Post options"
+                            >
+                              <FaEllipsisH />
+                            </button>
+                            {openMenuId === n.id && (
+                              <div className="owner-options-menu">
+                                {download && (
+                                  <a href={download.href} download={download.filename} className="post-media-download-link">
+                                    Download
+                                  </a>
+                                )}
+                                {isOwner && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      if (!window.confirm("Edit this post?")) return;
+                                      startEdit(n);
+                                      setOpenMenuId("");
+                                    }}
+                                  >
+                                    Edit
+                                  </button>
+                                )}
+                                {isOwner && (
+                                  <button
+                                    type="button"
+                                    className="danger"
+                                    onClick={() => {
+                                      if (!window.confirm("Delete this post permanently?")) return;
+                                      delTweet(n.id);
+                                      setOpenMenuId("");
+                                    }}
+                                  >
+                                    Delete
+                                  </button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      {Boolean(n.content) && <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>}
+                      {n.imageData && <img src={n.imageData} alt="Tweet media" className="feed-media-image" />}
+                      {n.audioData && <ChatAudioPlayer src={n.audioData} className="feed-media-audio" />}
+                      {n.videoData && (
+                        <div className="feed-media-video-wrap">
+                          <video src={n.videoData} className="feed-media-video" controls preload="metadata" />
                         </div>
                       )}
-                    </div>
-                    {Boolean(n.content) && <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>}
-                    {n.imageData && <img src={n.imageData} alt="Tweet media" className="feed-media-image" />}
-                    {n.audioData && <ChatAudioPlayer src={n.audioData} className="feed-media-audio" />}
-                    {n.videoData && (
-                      <div className="feed-media-video-wrap">
-                        <video src={n.videoData} className="feed-media-video" controls preload="metadata" />
-                        <a href={n.videoData} download={`tweet-video-${n.id}.${extensionFromDataUrl(n.videoData, "mp4")}`} className="media-download">
-                          Download
-                        </a>
+                      <div className="actions-row">
+                        <button
+                          type="button"
+                          className={`action-btn like-btn ${n.likedByMe ? "active" : ""}`}
+                          onClick={() => likeTweet(n.id)}
+                          disabled={likeLoadingId === n.id}
+                        >
+                          {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
+                        </button>
+                        <button type="button" className="action-btn" onClick={() => openCommentsModal(n.id)} disabled={commentLoadingId === n.id}>
+                          {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
+                        </button>
                       </div>
-                    )}
-                    <div className="actions-row">
-                      <button
-                        type="button"
-                        className={`action-btn like-btn ${n.likedByMe ? "active" : ""}`}
-                        onClick={() => likeTweet(n.id)}
-                        disabled={likeLoadingId === n.id}
-                      >
-                        {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
-                      </button>
-                      <button type="button" className="action-btn" onClick={() => openCommentsModal(n.id)} disabled={commentLoadingId === n.id}>
-                        {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
-                      </button>
-                    </div>
-                  </>
-                )}
+                    </>
+                  );
+                })()}
               </div>
             ))
           )}

@@ -200,6 +200,27 @@ h1, h2, h3, h4 { margin: 0; }
 .owner-options-menu button.danger {
   color: #fca5a5;
 }
+.post-media-options {
+  display: inline-flex;
+  margin-top: 4px;
+}
+.post-media-download-link {
+  display: block;
+  width: 100%;
+  height: 30px;
+  line-height: 30px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #2f3238;
+  color: #e5e7eb;
+  text-align: left;
+  padding: 0 10px;
+  text-decoration: none;
+}
+.post-media-download-link:hover {
+  border-color: var(--accent);
+}
 .feed-media-image {
   width: 100%;
   max-width: 100%;
