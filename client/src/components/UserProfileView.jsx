@@ -27,6 +27,7 @@ export default function UserProfileView({
   delTweet,
   onOpenProfile,
   onToggleFollow,
+  focusedPostId,
 }) {
   const { uid = "" } = useParams();
   const viewed = useMemo(() => {
@@ -86,7 +87,7 @@ export default function UserProfileView({
         delTweet={delTweet}
         onOpenPublish={() => {}}
         users={users}
-        focusedPostId=""
+        focusedPostId={focusedPostId}
         onOpenProfile={onOpenProfile}
         title={isSelf ? "Your Tweets" : `${viewed.nickname || "User"}'s Tweets`}
         showPublish={false}

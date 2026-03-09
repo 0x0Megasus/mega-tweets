@@ -1,22 +1,22 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { browserLocalPersistence, onAuthStateChanged, setPersistence, signInWithPopup, signOut } from "firebase/auth";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
 import { api } from "./api";
 import "./App.css";
-import TopNav from "./components/TopNav";
-import AuthLanding from "./components/AuthLanding";
-import SetupProfile from "./components/SetupProfile";
-import FeedView from "./components/FeedView";
-import GroupsView from "./components/GroupsView";
-import DmView from "./components/DmView";
-import NotificationsView from "./components/NotificationsView";
-import ProfileView from "./components/ProfileView";
-import UserProfileView from "./components/UserProfileView";
-import ConfirmLeaveModal from "./components/ConfirmLeaveModal";
-import PublishTweetModal from "./components/PublishTweetModal";
-import PostCommentsModal from "./components/PostCommentsModal";
-import NotFoundPage from "./components/NotFoundPage";
+const TopNav = lazy(() => import("./components/TopNav"));
+const AuthLanding = lazy(() => import("./components/AuthLanding"));
+const SetupProfile = lazy(() => import("./components/SetupProfile"));
+const FeedView = lazy(() => import("./components/FeedView"));
+const GroupsView = lazy(() => import("./components/GroupsView"));
+const DmView = lazy(() => import("./components/DmView"));
+const NotificationsView = lazy(() => import("./components/NotificationsView"));
+const ProfileView = lazy(() => import("./components/ProfileView"));
+const UserProfileView = lazy(() => import("./components/UserProfileView"));
+const ConfirmLeaveModal = lazy(() => import("./components/ConfirmLeaveModal"));
+const PublishTweetModal = lazy(() => import("./components/PublishTweetModal"));
+const PostCommentsModal = lazy(() => import("./components/PostCommentsModal"));
+const NotFoundPage = lazy(() => import("./components/NotFoundPage"));
 
 const TABS = ["feed", "groups", "dm", "notifications", "profile"];
 export const INTEREST_OPTIONS = [
@@ -890,10 +890,14 @@ function App() {
     if (!notification.read) await markRead(notification.id);
 
     if ((notification.type === "tweet_like" || notification.type === "tweet_comment") && notification.tweetId) {
-      const exists = tweets.some((n) => n.id === notification.tweetId);
       setFocusedPostId(notification.tweetId);
-      navigate("/feed");
-      if (!exists) setError("This post is no longer available.");
+      const targetTweet = tweets.find((n) => n.id === notification.tweetId);
+      if (!targetTweet) {
+        navigate("/feed");
+        setError("This post is no longer available.");
+        return;
+      }
+      navigate(`/users/${targetTweet.authorUid}`);
       return;
     }
     if (notification.type === "group_reply" && notification.groupId) {
@@ -927,27 +931,36 @@ function App() {
   };
 
   if (checking) return <div className="center-screen loading-screen"><div className="spinner" /></div>;
-  if (!firebaseUser) return <AuthLanding login={login} loginLoading={loginLoading} error={error} />;
+  if (!firebaseUser) {
+    return (
+      <Suspense fallback={<div className="center-screen loading-screen"><div className="spinner" /></div>}>
+        <AuthLanding login={login} loginLoading={loginLoading} error={error} />
+      </Suspense>
+    );
+  }
   if (!profile?.fullName || !profile?.nickname || !(profile?.interests || []).length) {
     return (
-      <SetupProfile
-        firebaseUser={firebaseUser}
-        setupNickname={setupNickname}
-        setSetupNickname={setSetupNickname}
-        setupBio={setupBio}
-        setSetupBio={setSetupBio}
-        setupInterests={setupInterests}
-        setSetupInterests={setSetupInterests}
-        saveSetup={saveSetup}
-        error={error}
-        interestOptions={INTEREST_OPTIONS}
-      />
+      <Suspense fallback={<div className="center-screen loading-screen"><div className="spinner" /></div>}>
+        <SetupProfile
+          firebaseUser={firebaseUser}
+          setupNickname={setupNickname}
+          setSetupNickname={setSetupNickname}
+          setupBio={setupBio}
+          setSetupBio={setSetupBio}
+          setupInterests={setupInterests}
+          setSetupInterests={setSetupInterests}
+          saveSetup={saveSetup}
+          error={error}
+          interestOptions={INTEREST_OPTIONS}
+        />
+      </Suspense>
     );
   }
 
   return (
-    <div className="app-shell">
-      <TopNav tabs={TABS} tab={currentTab} setTab={(nextTab) => navigate(`/${nextTab}`)} profile={profile} firebaseUser={firebaseUser} badgeCounts={badgeCounts} />
+    <Suspense fallback={<div className="center-screen loading-screen"><div className="spinner" /></div>}>
+      <div className="app-shell">
+        <TopNav tabs={TABS} tab={currentTab} setTab={(nextTab) => navigate(`/${nextTab}`)} profile={profile} firebaseUser={firebaseUser} badgeCounts={badgeCounts} />
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
@@ -956,7 +969,7 @@ function App() {
         <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
         <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
-        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} />} />
+        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} focusedPostId={focusedPostId} />} />
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
@@ -992,8 +1005,9 @@ function App() {
         containsArabic={containsArabic}
         onOpenProfile={(uid) => navigate(`/users/${uid}`)}
       />
-      {busy && !pendingLeaveGroupId && <div className="loading-overlay" role="status" aria-live="polite"><div className="spinner" /></div>}
-    </div>
+        {busy && !pendingLeaveGroupId && <div className="loading-overlay" role="status" aria-live="polite"><div className="spinner" /></div>}
+      </div>
+    </Suspense>
   );
 }
 

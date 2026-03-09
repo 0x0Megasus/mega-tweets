@@ -106,7 +106,7 @@ export default function PostCommentsModal({
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay comments-overlay" onClick={onClose}>
       <div className="modal-content comments-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3><FaComments /> Post comments</h3>
