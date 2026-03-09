@@ -92,6 +92,8 @@ export default function DmView({
   const lastMessageIdRef = useRef("");
   const lastTargetRef = useRef("");
   const [showScrollDown, setShowScrollDown] = useState(false);
+  const followingUsers = others.filter((u) => u.isFollowing);
+  const otherUsers = others.filter((u) => !u.isFollowing);
   const usernameColor = useCallback((uid = "", nickname = "") => {
     const key = `${uid || ""}:${nickname || ""}`;
     let hash = 0;
@@ -245,7 +247,29 @@ export default function DmView({
         <article className="panel">
           <h3><FaUserCircle /> Users</h3>
           <div className="user-list dm-user-list">
-            {others.map((u) => (
+            {followingUsers.length > 0 && <small className="dm-user-group-title">Following</small>}
+            {followingUsers.map((u) => (
+              <button
+                type="button"
+                key={u.uid}
+                className={`user-item dm-user-item ${dmTargetUid === u.uid ? "selected" : ""}`}
+                onClick={() => {
+                  setDmTargetUid(u.uid);
+                  setDmReplyTo(null);
+                  if (isMobile) setMobileDmPage("chat");
+                }}
+              >
+                <img
+                  src={pickAvatar(u.photoURL, u.photoUrl)}
+                  alt={u.nickname}
+                  className="avatar"
+                  onError={handleAvatarError}
+                />
+                <span style={{ color: usernameColor(u.uid, u.nickname) }}>{u.nickname}</span>
+              </button>
+            ))}
+            {otherUsers.length > 0 && <small className="dm-user-group-title">Others</small>}
+            {otherUsers.map((u) => (
               <button
                 type="button"
                 key={u.uid}

@@ -39,6 +39,8 @@ export default function GroupsView(props) {
     isMobile,
     mobileGroupPage,
     setMobileGroupPage,
+    showGroupMembers,
+    setShowGroupMembers,
     createGroup,
     groupName,
     setGroupName,
@@ -270,6 +272,51 @@ export default function GroupsView(props) {
     if (!isMobile) setShowMediaOptions(false);
   }, [isMobile, selectedGroup]);
 
+  useEffect(() => {
+    setShowGroupMembers(false);
+  }, [selectedGroup, setShowGroupMembers]);
+
+  const renderMembers = (allowActions = false) => (
+    <div className="admin-box">
+      {sortedMembers.map((m) => (
+        <div key={m.uid} className="admin-member-row">
+          <div className="member-main">
+            <button type="button" className="profile-link-btn member-profile-link" onClick={() => onOpenProfile?.(m.uid)}>
+              <img
+                src={pickAvatar(m.photoURL, m.photoUrl)}
+                alt={m.nickname}
+                className="avatar-member"
+                onError={handleAvatarError}
+              />
+              <div>
+                <strong>{m.nickname}</strong>
+              </div>
+            </button>
+            <div>
+              {m.isAdmin && (
+                <span className="admin-badge">
+                  <FaCrown /> Admin
+                </span>
+              )}
+            </div>
+          </div>
+          {allowActions && m.uid !== profile.uid && (
+            <div className="actions-row">
+              {!m.isAdmin && (
+                <button type="button" onClick={() => promote(m.uid)}>
+                  Promote
+                </button>
+              )}
+              <button type="button" onClick={() => removeMember(m.uid)}>
+                Remove
+              </button>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <section className="groups-layout">
       {(!isMobile || mobileGroupPage === "list") && (
@@ -336,6 +383,17 @@ export default function GroupsView(props) {
           {selectedGroupData ? (
             selectedGroupData.joined ? (
               <>
+                {isMobile && (
+                  <div className="group-members-toggle-row">
+                    <button
+                      type="button"
+                      className="secondary-btn"
+                      onClick={() => setShowGroupMembers((prev) => !prev)}
+                    >
+                      {showGroupMembers ? "Hide members" : "Show members"}
+                    </button>
+                  </div>
+                )}
                 {selectedGroupData.isAdmin && selectedGroupData.inviteLink && (
                   <div className="invite-link-row">
                     <span>{selectedGroupData.inviteLink}</span>
@@ -361,6 +419,11 @@ export default function GroupsView(props) {
                       />
                       Auto-delete 24h
                     </label>
+                  </div>
+                )}
+                {isMobile && showGroupMembers && (
+                  <div className="mobile-group-members-panel">
+                    {renderMembers(false)}
                   </div>
                 )}
                 <div className="messages-wrap">
@@ -667,47 +730,10 @@ export default function GroupsView(props) {
       {!isMobile && (
         <article className="panel groups-members-panel">
           <h3><FaCrown /> Members</h3>
-          {selectedGroupData?.isAdmin ? (
-            <div className="admin-box">
-              {sortedMembers.map((m) => (
-                <div key={m.uid} className="admin-member-row">
-                  <div className="member-main">
-                    <button type="button" className="profile-link-btn member-profile-link" onClick={() => onOpenProfile?.(m.uid)}>
-                      <img
-                        src={pickAvatar(m.photoURL, m.photoUrl)}
-                        alt={m.nickname}
-                        className="avatar-member"
-                        onError={handleAvatarError}
-                      />
-                      <div>
-                        <strong>{m.nickname}</strong>
-                      </div>
-                    </button>
-                    <div>
-                      {m.isAdmin && (
-                        <span className="admin-badge">
-                          <FaCrown /> Admin
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  {m.uid !== profile.uid && (
-                    <div className="actions-row">
-                      {!m.isAdmin && (
-                        <button type="button" onClick={() => promote(m.uid)}>
-                          Promote
-                        </button>
-                      )}
-                      <button type="button" onClick={() => removeMember(m.uid)}>
-                        Remove
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+          {selectedGroupData?.joined ? (
+            renderMembers(Boolean(selectedGroupData?.isAdmin))
           ) : (
-            <p>Admins panel.</p>
+            <p>Join the group to see members.</p>
           )}
         </article>
       )}

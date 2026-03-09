@@ -6,6 +6,8 @@ export default function ProfileView({
   saveProfile,
   soundSettings,
   setSoundSettings,
+  onLogout,
+  interestOptions = [],
 }) {
   const onPickAvatar = (file) => {
     if (!file) return;
@@ -68,8 +70,29 @@ export default function ProfileView({
             onChange={(e) => setProfileDraft((p) => ({ ...p, bio: e.target.value }))}
             placeholder="bio"
           />
+          <div className="interest-pills">
+            {interestOptions.map((interest) => (
+              <button
+                key={interest}
+                type="button"
+                className={`interest-pill ${(profileDraft.interests || []).includes(interest) ? "active" : ""}`}
+                onClick={() => setProfileDraft((prev) => {
+                  const current = prev.interests || [];
+                  const interests = current.includes(interest)
+                    ? current.filter((item) => item !== interest)
+                    : [...current, interest];
+                  return { ...prev, interests };
+                })}
+              >
+                {interest}
+              </button>
+            ))}
+          </div>
           <button type="submit" className="primary-btn">
             Update
+          </button>
+          <button type="button" className="secondary-btn" onClick={onLogout}>
+            Logout
           </button>
         </form>
         <div className="sound-settings-box">

@@ -1,6 +1,6 @@
-import { FaBell, FaComments, FaFeatherAlt, FaHashtag, FaSignOutAlt, FaUser, FaUsers } from "react-icons/fa";
+import { FaBell, FaComments, FaFeatherAlt, FaHashtag, FaUser, FaUsers } from "react-icons/fa";
 
-export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, onLogout, badgeCounts = {} }) {
+export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, badgeCounts = {} }) {
   const tabMeta = {
     feed: { label: "Tweets", icon: <FaHashtag /> },
     groups: { label: "Groups", icon: <FaUsers /> },
@@ -24,7 +24,6 @@ export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, onLog
       <div className="user-pill">
         <img src={profile.photoURL || firebaseUser.photoURL || ""} alt={profile.nickname} className="avatar" />
         <span>{profile.nickname}</span>
-        <button type="button" className="icon-btn" onClick={onLogout}><FaSignOutAlt /></button>
       </div>
     </nav>
   );

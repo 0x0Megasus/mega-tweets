@@ -37,6 +37,15 @@ function sanitizeDataUrl(input, allowedPrefix, maxLength) {
   return value;
 }
 
+function sanitizeInterests(input, maxItems = 8) {
+  if (!Array.isArray(input)) return [];
+  const values = input
+    .map((item) => (typeof item === "string" ? item.trim().toLowerCase() : ""))
+    .filter(Boolean)
+    .map((item) => item.slice(0, 30));
+  return [...new Set(values)].slice(0, maxItems);
+}
+
 function conversationId(uidA, uidB) {
   return [uidA, uidB].sort().join("_");
 }
@@ -113,6 +122,52 @@ async function pruneOldGroupMessages(groupId, maxAgeMs = 24 * 60 * 60 * 1000) {
   if (removals.length) await Promise.all(removals);
 }
 
+async function syncUserPhotoAcrossContent(uid, photoURL) {
+  const updates = {};
+  const [tweetsSnap, commentsSnap, groupMessagesSnap, dmSnap] = await Promise.all([
+    db.ref("tweets").get(),
+    db.ref("tweetComments").get(),
+    db.ref("groupMessages").get(),
+    db.ref("dms").get(),
+  ]);
+
+  const tweets = tweetsSnap.exists() ? tweetsSnap.val() : {};
+  Object.entries(tweets).forEach(([tweetId, tweet]) => {
+    if (tweet?.authorUid === uid) updates[`tweets/${tweetId}/authorPhotoURL`] = photoURL;
+  });
+
+  const tweetComments = commentsSnap.exists() ? commentsSnap.val() : {};
+  Object.entries(tweetComments).forEach(([tweetId, tweetCommentMap]) => {
+    Object.entries(tweetCommentMap || {}).forEach(([commentId, comment]) => {
+      if (comment?.authorUid === uid) updates[`tweetComments/${tweetId}/${commentId}/authorPhotoURL`] = photoURL;
+    });
+  });
+
+  const groupMessages = groupMessagesSnap.exists() ? groupMessagesSnap.val() : {};
+  Object.entries(groupMessages).forEach(([groupId, messageMap]) => {
+    Object.entries(messageMap || {}).forEach(([messageId, message]) => {
+      if (message?.senderUid === uid) updates[`groupMessages/${groupId}/${messageId}/senderPhotoURL`] = photoURL;
+      if (message?.replyTo?.senderUid === uid) {
+        updates[`groupMessages/${groupId}/${messageId}/replyTo/senderPhotoURL`] = photoURL;
+      }
+    });
+  });
+
+  const dms = dmSnap.exists() ? dmSnap.val() : {};
+  Object.entries(dms).forEach(([conversationKey, messageMap]) => {
+    Object.entries(messageMap || {}).forEach(([messageId, message]) => {
+      if (message?.senderUid === uid) updates[`dms/${conversationKey}/${messageId}/senderPhotoURL`] = photoURL;
+      if (message?.replyTo?.senderUid === uid) {
+        updates[`dms/${conversationKey}/${messageId}/replyTo/senderPhotoURL`] = photoURL;
+      }
+    });
+  });
+
+  if (Object.keys(updates).length) {
+    await db.ref().update(updates);
+  }
+}
+
 const authRequired = asyncHandler(async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
@@ -140,7 +195,19 @@ app.get("/api/profiles/me", asyncHandler(async (req, res) => {
   const existing = await getProfile(req.user.uid);
 
   if (existing) {
-    return res.json(existing);
+    const [followingSnap, followersSnap] = await Promise.all([
+      db.ref(`userFollows/${req.user.uid}`).get(),
+      db.ref(`userFollowers/${req.user.uid}`).get(),
+    ]);
+    const followingIds = followingSnap.exists() ? Object.keys(followingSnap.val()) : [];
+    const followerCount = followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0;
+    return res.json({
+      ...existing,
+      interests: existing.interests || [],
+      followingIds,
+      followingCount: followingIds.length,
+      followerCount,
+    });
   }
 
   return res.json({
@@ -149,7 +216,11 @@ app.get("/api/profiles/me", asyncHandler(async (req, res) => {
     fullName: "",
     nickname: "",
     bio: "",
+    interests: [],
     photoURL: req.user.picture || "",
+    followingIds: [],
+    followerCount: 0,
+    followingCount: 0,
     createdAt: null,
     updatedAt: null,
   });
@@ -159,6 +230,7 @@ app.post("/api/profiles/me", asyncHandler(async (req, res) => {
   const fullName = sanitizeText(req.body?.fullName, 60);
   const nickname = sanitizeText(req.body?.nickname, 40);
   const bio = sanitizeText(req.body?.bio, 220);
+  const interests = sanitizeInterests(req.body?.interests);
   const uploadedPhoto = sanitizeDataUrl(req.body?.photoURL, "data:image/", 1_500_000);
 
   if (fullName.length < 2) {
@@ -166,6 +238,9 @@ app.post("/api/profiles/me", asyncHandler(async (req, res) => {
   }
   if (nickname.length < 2) {
     return res.status(400).json({ error: "Nickname must be at least 2 characters" });
+  }
+  if (!interests.length) {
+    return res.status(400).json({ error: "Pick at least one interest" });
   }
 
   const existing = await getProfile(req.user.uid);
@@ -177,6 +252,7 @@ app.post("/api/profiles/me", asyncHandler(async (req, res) => {
     fullName,
     nickname,
     bio,
+    interests,
     photoURL: nextPhoto,
     updatedAt: nowIso(),
   };
@@ -188,13 +264,60 @@ app.post("/api/profiles/me", asyncHandler(async (req, res) => {
   }
 
   await db.ref(`profiles/${req.user.uid}`).set(profile);
-  return res.status(201).json(profile);
+  await syncUserPhotoAcrossContent(req.user.uid, profile.photoURL);
+  const [followingSnap, followersSnap] = await Promise.all([
+    db.ref(`userFollows/${req.user.uid}`).get(),
+    db.ref(`userFollowers/${req.user.uid}`).get(),
+  ]);
+  const followingIds = followingSnap.exists() ? Object.keys(followingSnap.val()) : [];
+  const followerCount = followersSnap.exists() ? Object.keys(followersSnap.val()).length : 0;
+  return res.status(201).json({
+    ...profile,
+    followingIds,
+    followingCount: followingIds.length,
+    followerCount,
+  });
 }));
 
-app.get("/api/profiles", asyncHandler(async (_, res) => {
-  const snapshot = await db.ref("profiles").get();
-  const data = snapshot.exists() ? Object.values(snapshot.val()) : [];
+app.get("/api/profiles", asyncHandler(async (req, res) => {
+  const [profilesSnap, followsSnap, followersSnap] = await Promise.all([
+    db.ref("profiles").get(),
+    db.ref("userFollows").get(),
+    db.ref("userFollowers").get(),
+  ]);
+  const profiles = profilesSnap.exists() ? profilesSnap.val() : {};
+  const follows = followsSnap.exists() ? followsSnap.val() : {};
+  const followers = followersSnap.exists() ? followersSnap.val() : {};
+  const myFollowing = follows[req.user.uid] || {};
+  const data = Object.values(profiles).map((profile) => ({
+    ...profile,
+    interests: profile.interests || [],
+    isFollowing: Boolean(myFollowing[profile.uid]),
+    followerCount: followers[profile.uid] ? Object.keys(followers[profile.uid]).length : 0,
+    followingCount: follows[profile.uid] ? Object.keys(follows[profile.uid]).length : 0,
+  }));
   return res.json(data);
+}));
+
+app.post("/api/profiles/:uid/follow", asyncHandler(async (req, res) => {
+  const targetUid = sanitizeText(req.params.uid, 128);
+  if (!targetUid || targetUid === req.user.uid) {
+    return res.status(400).json({ error: "Invalid user" });
+  }
+  const targetProfile = await getProfile(targetUid);
+  if (!targetProfile) {
+    return res.status(404).json({ error: "User not found" });
+  }
+
+  const followRef = db.ref(`userFollows/${req.user.uid}/${targetUid}`);
+  const followerRef = db.ref(`userFollowers/${targetUid}/${req.user.uid}`);
+  const existing = await followRef.get();
+  if (existing.exists()) {
+    await Promise.all([followRef.remove(), followerRef.remove()]);
+    return res.json({ following: false });
+  }
+  await Promise.all([followRef.set(true), followerRef.set(true)]);
+  return res.json({ following: true });
 }));
 
 app.get("/api/notifications", asyncHandler(async (req, res) => {
@@ -239,31 +362,56 @@ app.post("/api/presence/view", asyncHandler(async (req, res) => {
   return res.json({ ok: true });
 }));
 
-app.get("/api/tweets", asyncHandler(async (_, res) => {
-  const [tweetsSnap, likesSnap, commentsSnap] = await Promise.all([
+app.get("/api/tweets", asyncHandler(async (req, res) => {
+  const [tweetsSnap, likesSnap, commentsSnap, followSnap, meProfile] = await Promise.all([
     db.ref("tweets").get(),
     db.ref("tweetLikes").get(),
     db.ref("tweetComments").get(),
+    db.ref(`userFollows/${req.user.uid}`).get(),
+    getProfile(req.user.uid),
   ]);
 
   const tweets = tweetsSnap.exists() ? tweetsSnap.val() : {};
   const likes = likesSnap.exists() ? likesSnap.val() : {};
   const comments = commentsSnap.exists() ? commentsSnap.val() : {};
+  const following = followSnap.exists() ? followSnap.val() : {};
+  const interests = sanitizeInterests(meProfile?.interests || []);
+  const now = Date.now();
+
+  const scoreTweet = (tweet) => {
+    let score = 0;
+    if (tweet.authorUid === req.user.uid) score += 80;
+    if (following[tweet.authorUid]) score += 120;
+    const haystack = `${tweet.content || ""} ${tweet.topic || ""}`.toLowerCase();
+    interests.forEach((interest) => {
+      if (haystack.includes(interest)) score += 30;
+    });
+    const ageHours = Math.max(0, (now - new Date(tweet.createdAt).getTime()) / 3_600_000);
+    score += Math.max(0, 48 - ageHours);
+    return score;
+  };
 
   const result = Object.entries(tweets)
     .map(([id, value]) => ({
       id,
       ...value,
       likesCount: likes[id] ? Object.keys(likes[id]).length : 0,
+      likedByMe: Boolean(likes[id]?.[req.user.uid]),
       commentsCount: comments[id] ? Object.keys(comments[id]).length : 0,
+      rankScore: scoreTweet(value),
     }))
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    .sort((a, b) => {
+      if ((b.rankScore || 0) !== (a.rankScore || 0)) return (b.rankScore || 0) - (a.rankScore || 0);
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    })
+    .map(({ rankScore, ...tweet }) => tweet);
 
   return res.json(result);
 }));
 
 app.post("/api/tweets", asyncHandler(async (req, res) => {
   const content = sanitizeText(req.body?.content, 6000);
+  const topic = sanitizeText(req.body?.topic, 30);
   const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
   const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
   const videoData = sanitizeDataUrl(req.body?.videoData, "data:video/", 6_500_000);
@@ -287,6 +435,7 @@ app.post("/api/tweets", asyncHandler(async (req, res) => {
     imageData,
     audioData,
     videoData,
+    topic,
     createdAt: nowIso(),
   };
 
@@ -340,6 +489,7 @@ app.delete("/api/tweets/:tweetId", asyncHandler(async (req, res) => {
     tweetRef.remove(),
     db.ref(`tweetLikes/${tweetId}`).remove(),
     db.ref(`tweetComments/${tweetId}`).remove(),
+    db.ref(`tweetCommentLikes/${tweetId}`).remove(),
   ]);
 
   return res.json({ ok: true });
@@ -376,11 +526,20 @@ app.post("/api/tweets/:tweetId/like", asyncHandler(async (req, res) => {
 }));
 
 app.get("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
-  const snapshot = await db.ref(`tweetComments/${req.params.tweetId}`).get();
-  const comments = snapshot.exists() ? snapshot.val() : {};
+  const [commentsSnap, likesSnap] = await Promise.all([
+    db.ref(`tweetComments/${req.params.tweetId}`).get(),
+    db.ref(`tweetCommentLikes/${req.params.tweetId}`).get(),
+  ]);
+  const comments = commentsSnap.exists() ? commentsSnap.val() : {};
+  const likes = likesSnap.exists() ? likesSnap.val() : {};
 
   const result = Object.entries(comments)
-    .map(([id, value]) => ({ id, ...value }))
+    .map(([id, value]) => ({
+      id,
+      ...value,
+      likesCount: likes[id] ? Object.keys(likes[id]).length : 0,
+      likedByMe: Boolean(likes[id]?.[req.user.uid]),
+    }))
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
   return res.json(result);
@@ -388,6 +547,7 @@ app.get("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
 
 app.post("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
   const text = sanitizeText(req.body?.text, 800);
+  const parentCommentId = sanitizeText(req.body?.parentCommentId, 120);
   if (text.length < 2) {
     return res.status(400).json({ error: "Comment must be at least 2 characters" });
   }
@@ -407,6 +567,7 @@ app.post("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
     authorNickname: profile.nickname,
     authorPhotoURL: profile.photoURL || req.user.picture || "",
     text,
+    parentCommentId: parentCommentId || "",
     createdAt: nowIso(),
   };
 
@@ -421,7 +582,25 @@ app.post("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
       commentText: text.slice(0, 120),
     });
   }
-  return res.status(201).json({ id: commentRef.key, ...comment });
+  return res.status(201).json({ id: commentRef.key, ...comment, likesCount: 0, likedByMe: false });
+}));
+
+app.post("/api/tweets/:tweetId/comments/:commentId/like", asyncHandler(async (req, res) => {
+  const { tweetId, commentId } = req.params;
+  const commentSnap = await db.ref(`tweetComments/${tweetId}/${commentId}`).get();
+  if (!commentSnap.exists()) {
+    return res.status(404).json({ error: "Comment not found" });
+  }
+
+  const likeRef = db.ref(`tweetCommentLikes/${tweetId}/${commentId}/${req.user.uid}`);
+  const likedSnap = await likeRef.get();
+  if (likedSnap.exists()) await likeRef.remove();
+  else await likeRef.set(true);
+
+  const likesSnap = await db.ref(`tweetCommentLikes/${tweetId}/${commentId}`).get();
+  const likesCount = likesSnap.exists() ? Object.keys(likesSnap.val()).length : 0;
+
+  return res.json({ liked: !likedSnap.exists(), likesCount });
 }));
 
 app.get("/api/groups", asyncHandler(async (req, res) => {

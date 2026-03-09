@@ -22,12 +22,11 @@ export default function UserProfileView({
   likeTweet,
   likeLoadingId,
   commentLoadingId,
-  toggleComments,
+  openCommentsModal,
   startEdit,
   delTweet,
-  commentCache,
-  sendComment,
   onOpenProfile,
+  onToggleFollow,
 }) {
   const { uid = "" } = useParams();
   const viewed = useMemo(() => {
@@ -61,6 +60,12 @@ export default function UserProfileView({
           <p><strong>{isSelf ? "You" : (viewed.fullName || viewed.nickname || "User")}</strong></p>
           <p>@{isSelf ? "you" : (viewed.nickname || "unknown")}</p>
           <p>{viewed.bio || "No bio"}</p>
+          <p>{viewed.followerCount || 0} followers • {viewed.followingCount || 0} following</p>
+          {!isSelf && (
+            <button type="button" className="primary-btn" onClick={() => onToggleFollow?.(viewed.uid)}>
+              {viewed.isFollowing ? "Unfollow" : "Follow"}
+            </button>
+          )}
         </div>
       </article>
       <FeedView
@@ -75,12 +80,10 @@ export default function UserProfileView({
         likeTweet={likeTweet}
         likeLoadingId={likeLoadingId}
         commentLoadingId={commentLoadingId}
-        toggleComments={toggleComments}
+        openCommentsModal={openCommentsModal}
         profile={profile}
         startEdit={startEdit}
         delTweet={delTweet}
-        commentCache={commentCache}
-        sendComment={sendComment}
         onOpenPublish={() => {}}
         users={users}
         focusedPostId=""

@@ -22,8 +22,8 @@ const extensionFromDataUrl = (dataUrl, fallback = "bin") => {
 export default function FeedView(props) {
   const {
     tweets, editingId, editContent, setEditContent,
-    saveEdit, setEditingId, timeAgo, containsArabic, likeTweet, likeLoadingId, commentLoadingId, toggleComments, profile, startEdit, delTweet,
-    commentCache, sendComment, onOpenPublish, users, focusedPostId, onOpenProfile,
+    saveEdit, setEditingId, timeAgo, containsArabic, likeTweet, likeLoadingId, commentLoadingId, openCommentsModal, profile, startEdit, delTweet,
+    onOpenPublish, users, focusedPostId, onOpenProfile,
     title = "Tweets",
     showPublish = true,
     emptyText = "No tweets yet. Be the first to post one!",
@@ -152,43 +152,18 @@ export default function FeedView(props) {
                       </div>
                     )}
                     <div className="actions-row">
-                      <button type="button" className="action-btn" onClick={() => likeTweet(n.id)} disabled={likeLoadingId === n.id}>
+                      <button
+                        type="button"
+                        className={`action-btn like-btn ${n.likedByMe ? "active" : ""}`}
+                        onClick={() => likeTweet(n.id)}
+                        disabled={likeLoadingId === n.id}
+                      >
                         {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
                       </button>
-                      <button type="button" className="action-btn" onClick={() => toggleComments(n.id)} disabled={commentLoadingId === n.id}>
+                      <button type="button" className="action-btn" onClick={() => openCommentsModal(n.id)} disabled={commentLoadingId === n.id}>
                         {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
                       </button>
                     </div>
-                    {commentCache[n.id] && (
-                      <div className="comment-box fb-comments">
-                        {commentCache[n.id].map((c) => (
-                          <div key={c.id} className="comment-item">
-                            <img
-                              src={pickAvatar(
-                                c.authorPhotoURL,
-                                c.authorPhotoUrl,
-                                c.photoURL,
-                                c.photoUrl,
-                                userByUid[c.authorUid]?.photoURL,
-                                userByUid[c.authorUid]?.photoUrl,
-                              )}
-                              alt={c.authorNickname}
-                              className="avatar-sm"
-                              onError={handleAvatarError}
-                            />
-                            <div>
-                              <strong>{c.authorNickname}</strong>
-                              <p>{c.text}</p>
-                              <small>{timeAgo(c.createdAt)}</small>
-                            </div>
-                          </div>
-                        ))}
-                        <form onSubmit={(e) => sendComment(e, n.id)} className="row-form comment-form">
-                          <input name="text" placeholder="Write comment" minLength={2} required />
-                          <button type="submit" disabled={commentLoadingId === n.id}>{commentLoadingId === n.id ? <span className="btn-spinner" /> : 'Send'}</button>
-                        </form>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
