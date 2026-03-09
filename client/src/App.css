@@ -99,13 +99,13 @@ h1, h2, h3, h4 { margin: 0; }
 .row-form button:hover, .actions-row button:hover, .group-item button:hover, .reply-btn:hover { border-color: var(--accent); }
 
 .cards, .group-list, .messages-box, .user-list, .comment-box { display: grid; gap: 8px; }
-.novel-card, .group-item, .user-item, .admin-member-row { border: 1px solid #42454d; background: var(--panel-2); border-radius: 8px; padding: 11px; max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
+.tweet-card, .group-item, .user-item, .admin-member-row { border: 1px solid #42454d; background: var(--panel-2); border-radius: 8px; padding: 11px; max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
 .meta-row, .author-row, .actions-row, .comment-item, .message-item { display: flex; align-items: flex-start; gap: 4px; }
 .message-item { width: 100%; min-width: 0; }
 .actions-row { margin-top: 2px; }
 .meta-row { justify-content: space-between; }
-.author-row small, .novel-card small, .message-item small, .comment-item small { color: var(--muted); font-size: 12px; }
-.novel-card p { margin: 0; line-height: 1.65; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }
+.author-row small, .tweet-card small, .message-item small, .comment-item small { color: var(--muted); font-size: 12px; }
+.tweet-card p { margin: 0; line-height: 1.65; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }
 .fb-comments { margin-top: 10px; padding-top: 10px; border-top: 1px solid #4a4d55; }
 .comment-form { margin-top: 10px; }
 
@@ -465,8 +465,57 @@ h1, h2, h3, h4 { margin: 0; }
   }
 .invite-link-row { margin: 8px 0 12px; display: flex; align-items: center; gap: 8px; border: 1px solid #4a4d55; border-radius: 6px; background: #2d3036; padding: 8px; }
 .invite-link-row span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.admin-box { display: grid; gap: 8px; margin-top: 8px; }
+.admin-box {
+  display: grid;
+  gap: 6px;
+  margin-top: 6px;
+  align-content: start;
+  grid-auto-rows: min-content;
+}
 .admin-badge { margin-left: 8px; font-size: 12px; color: #ffbf86; display: inline-flex; gap: 4px; align-items: center; }
+.groups-members-panel {
+  min-height: 0;
+}
+.groups-members-panel .admin-box {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: thin;
+  padding-right: 0;
+}
+.admin-member-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-color: #3b3f45;
+  background: #2a2d31;
+}
+.admin-member-row .member-main {
+  min-width: 0;
+}
+.admin-member-row .member-main > div {
+  min-width: 0;
+}
+.admin-member-row .member-main strong {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-member-row .actions-row {
+  margin-top: 0;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.admin-member-row .actions-row button {
+  margin-left: 0;
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+}
 
 .profile-box p { margin: 0 0 8px; }
 .notif-unread { border-color: #8f5828; background: #3c2a1d; }
@@ -964,7 +1013,7 @@ h1, h2, h3, h4 { margin: 0; }
   .cards {
     gap: 10px;
   }
-  .novel-card p,
+  .tweet-card p,
   .group-item p,
   .message-item p {
     font-size: 15px;
@@ -1024,13 +1073,13 @@ h1, h2, h3, h4 { margin: 0; }
   .group-item strong {
     font-size: 15px;
   }
-  .novel-card p,
+  .tweet-card p,
   .group-item p,
   .message-item p {
     font-size: 14px;
     line-height: 1.5;
   }
-  .novel-card small,
+  .tweet-card small,
   .message-item small,
   .comment-item small {
     font-size: 11px;

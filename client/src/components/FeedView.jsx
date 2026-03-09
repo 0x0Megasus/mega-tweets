@@ -13,8 +13,8 @@ const handleAvatarError = (e) => {
 
 export default function FeedView(props) {
   const {
-    novels, editingId, editContent, setEditContent,
-    saveEdit, setEditingId, timeAgo, containsArabic, likeNovel, likeLoadingId, commentLoadingId, toggleComments, profile, startEdit, delNovel,
+    tweets, editingId, editContent, setEditContent,
+    saveEdit, setEditingId, timeAgo, containsArabic, likeTweet, likeLoadingId, commentLoadingId, toggleComments, profile, startEdit, delTweet,
     commentCache, sendComment, onOpenPublish, users, focusedPostId,
   } = props;
   const userByUid = Object.fromEntries((users || []).map((user) => [user.uid, user]));
@@ -25,7 +25,7 @@ export default function FeedView(props) {
     const target = postRefs.current[focusedPostId];
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [focusedPostId, novels]);
+  }, [focusedPostId, tweets]);
 
   return (
     <section className="feed-layout-full">
@@ -37,15 +37,15 @@ export default function FeedView(props) {
           </button>
         </div>
         <div className="cards">
-          {novels.length === 0 ? (
+          {tweets.length === 0 ? (
             <div className="empty-state">
               <p>No tweets yet. Be the first to post one!</p>
             </div>
           ) : (
-            novels.map((n) => (
+            tweets.map((n) => (
               <div
                 key={n.id}
-                className={`novel-card fb-card ${focusedPostId === n.id ? "focus-post" : ""}`}
+                className={`tweet-card fb-card ${focusedPostId === n.id ? "focus-post" : ""}`}
                 ref={(el) => {
                   if (el) postRefs.current[n.id] = el;
                 }}
@@ -80,7 +80,7 @@ export default function FeedView(props) {
                     </div>
                     <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>
                     <div className="actions-row">
-                      <button type="button" className="action-btn" onClick={() => likeNovel(n.id)} disabled={likeLoadingId === n.id}>
+                      <button type="button" className="action-btn" onClick={() => likeTweet(n.id)} disabled={likeLoadingId === n.id}>
                         {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
                       </button>
                       <button type="button" className="action-btn" onClick={() => toggleComments(n.id)} disabled={commentLoadingId === n.id}>
@@ -89,7 +89,7 @@ export default function FeedView(props) {
                       {n.authorUid === profile.uid && (
                         <>
                           <button type="button" onClick={() => startEdit(n)}>Edit</button>
-                          <button type="button" onClick={() => delNovel(n.id)}><FaTrash /></button>
+                          <button type="button" onClick={() => delTweet(n.id)}><FaTrash /></button>
                         </>
                       )}
                     </div>

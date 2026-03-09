@@ -7,7 +7,7 @@ const { auth, db } = await import("./firebaseAdmin.js");
 
 const app = express();
 const port = Number(process.env.PORT || 4000);
-const appName = "Mega Novels API";
+const appName = "Mega Tweets API";
 
 app.use(
   cors({
@@ -72,6 +72,27 @@ async function createNotification(targetUid, type, payload) {
   });
 }
 
+const parseIsoMs = (value) => {
+  const ms = new Date(value || "").getTime();
+  return Number.isNaN(ms) ? 0 : ms;
+};
+
+async function isUserViewingContext(uid, context) {
+  if (!uid || !context?.type) return false;
+  const snap = await db.ref(`presenceViews/${uid}`).get();
+  if (!snap.exists()) return false;
+  const active = snap.val() || {};
+  const isFresh = Date.now() - parseIsoMs(active.updatedAt) < 20_000;
+  if (!isFresh) return false;
+  if (context.type === "group") {
+    return active.type === "group" && active.groupId === context.groupId;
+  }
+  if (context.type === "dm") {
+    return active.type === "dm" && active.otherUid === context.otherUid;
+  }
+  return false;
+}
+
 async function isGroupAdmin(groupId, uid) {
   const snapshot = await db.ref(`groupAdmins/${groupId}/${uid}`).get();
   return snapshot.exists();
@@ -95,7 +116,7 @@ const authRequired = asyncHandler(async (req, res, next) => {
 });
 
 app.get("/api/health", (_, res) => {
-  res.json({ ok: true, service: "mega-novels-api", at: nowIso() });
+  res.json({ ok: true, service: "mega-tweets-api", at: nowIso() });
 });
 
 app.use("/api", authRequired);
@@ -182,18 +203,37 @@ app.post("/api/notifications/clear", asyncHandler(async (req, res) => {
   return res.json({ ok: true });
 }));
 
-app.get("/api/novels", asyncHandler(async (_, res) => {
-  const [novelsSnap, likesSnap, commentsSnap] = await Promise.all([
-    db.ref("novels").get(),
-    db.ref("novelLikes").get(),
-    db.ref("novelComments").get(),
+app.post("/api/presence/view", asyncHandler(async (req, res) => {
+  const type = sanitizeText(req.body?.type, 20);
+  const groupId = sanitizeText(req.body?.groupId, 120);
+  const otherUid = sanitizeText(req.body?.otherUid, 120);
+  const allowedTypes = new Set(["none", "group", "dm"]);
+  if (!allowedTypes.has(type)) {
+    return res.status(400).json({ error: "Invalid presence type" });
+  }
+
+  const payload = {
+    type,
+    groupId: type === "group" ? groupId : "",
+    otherUid: type === "dm" ? otherUid : "",
+    updatedAt: nowIso(),
+  };
+  await db.ref(`presenceViews/${req.user.uid}`).set(payload);
+  return res.json({ ok: true });
+}));
+
+app.get("/api/tweets", asyncHandler(async (_, res) => {
+  const [tweetsSnap, likesSnap, commentsSnap] = await Promise.all([
+    db.ref("tweets").get(),
+    db.ref("tweetLikes").get(),
+    db.ref("tweetComments").get(),
   ]);
 
-  const novels = novelsSnap.exists() ? novelsSnap.val() : {};
+  const tweets = tweetsSnap.exists() ? tweetsSnap.val() : {};
   const likes = likesSnap.exists() ? likesSnap.val() : {};
   const comments = commentsSnap.exists() ? commentsSnap.val() : {};
 
-  const result = Object.entries(novels)
+  const result = Object.entries(tweets)
     .map(([id, value]) => ({
       id,
       ...value,
@@ -205,7 +245,7 @@ app.get("/api/novels", asyncHandler(async (_, res) => {
   return res.json(result);
 }));
 
-app.post("/api/novels", asyncHandler(async (req, res) => {
+app.post("/api/tweets", asyncHandler(async (req, res) => {
   const content = sanitizeText(req.body?.content, 6000);
 
   if (content.length < 2) {
@@ -218,8 +258,8 @@ app.post("/api/novels", asyncHandler(async (req, res) => {
     return res.status(403).json({ error: "Set your nickname before posting" });
   }
 
-  const ref = db.ref("novels").push();
-  const novel = {
+  const ref = db.ref("tweets").push();
+  const tweet = {
     authorUid: req.user.uid,
     authorNickname: profile.nickname,
     authorPhotoURL: profile.photoURL || req.user.picture || "",
@@ -227,77 +267,77 @@ app.post("/api/novels", asyncHandler(async (req, res) => {
     createdAt: nowIso(),
   };
 
-  await ref.set(novel);
-  return res.status(201).json({ id: ref.key, ...novel, likesCount: 0, commentsCount: 0 });
+  await ref.set(tweet);
+  return res.status(201).json({ id: ref.key, ...tweet, likesCount: 0, commentsCount: 0 });
 }));
 
-app.put("/api/novels/:novelId", asyncHandler(async (req, res) => {
-  const { novelId } = req.params;
+app.put("/api/tweets/:tweetId", asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
   const content = sanitizeText(req.body?.content, 6000);
 
   if (content.length < 2) {
     return res.status(400).json({ error: "Content must be at least 2 characters" });
   }
 
-  const novelRef = db.ref(`novels/${novelId}`);
-  const novelSnap = await novelRef.get();
-  if (!novelSnap.exists()) {
-    return res.status(404).json({ error: "Novel not found" });
+  const tweetRef = db.ref(`tweets/${tweetId}`);
+  const tweetSnap = await tweetRef.get();
+  if (!tweetSnap.exists()) {
+    return res.status(404).json({ error: "Tweet not found" });
   }
 
-  const existingNovel = novelSnap.val();
-  if (existingNovel.authorUid !== req.user.uid) {
-    return res.status(403).json({ error: "You can edit only your own novel" });
+  const existingTweet = tweetSnap.val();
+  if (existingTweet.authorUid !== req.user.uid) {
+    return res.status(403).json({ error: "You can edit only your own tweet" });
   }
 
-  const updatedNovel = {
-    ...existingNovel,
+  const updatedTweet = {
+    ...existingTweet,
     content,
     updatedAt: nowIso(),
   };
 
-  await novelRef.set(updatedNovel);
-  return res.json({ id: novelId, ...updatedNovel });
+  await tweetRef.set(updatedTweet);
+  return res.json({ id: tweetId, ...updatedTweet });
 }));
 
-app.delete("/api/novels/:novelId", asyncHandler(async (req, res) => {
-  const { novelId } = req.params;
-  const novelRef = db.ref(`novels/${novelId}`);
-  const novelSnap = await novelRef.get();
-  if (!novelSnap.exists()) {
-    return res.status(404).json({ error: "Novel not found" });
+app.delete("/api/tweets/:tweetId", asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const tweetRef = db.ref(`tweets/${tweetId}`);
+  const tweetSnap = await tweetRef.get();
+  if (!tweetSnap.exists()) {
+    return res.status(404).json({ error: "Tweet not found" });
   }
 
-  const novel = novelSnap.val();
-  if (novel.authorUid !== req.user.uid) {
-    return res.status(403).json({ error: "You can delete only your own novel" });
+  const tweet = tweetSnap.val();
+  if (tweet.authorUid !== req.user.uid) {
+    return res.status(403).json({ error: "You can delete only your own tweet" });
   }
 
   await Promise.all([
-    novelRef.remove(),
-    db.ref(`novelLikes/${novelId}`).remove(),
-    db.ref(`novelComments/${novelId}`).remove(),
+    tweetRef.remove(),
+    db.ref(`tweetLikes/${tweetId}`).remove(),
+    db.ref(`tweetComments/${tweetId}`).remove(),
   ]);
 
   return res.json({ ok: true });
 }));
 
-app.post("/api/novels/:novelId/like", asyncHandler(async (req, res) => {
-  const { novelId } = req.params;
-  const likeRef = db.ref(`novelLikes/${novelId}/${req.user.uid}`);
+app.post("/api/tweets/:tweetId/like", asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const likeRef = db.ref(`tweetLikes/${tweetId}/${req.user.uid}`);
   const likedSnap = await likeRef.get();
-  const novelSnap = await db.ref(`novels/${novelId}`).get();
+  const tweetSnap = await db.ref(`tweets/${tweetId}`).get();
 
   if (likedSnap.exists()) {
     await likeRef.remove();
   } else {
     await likeRef.set(true);
-    if (novelSnap.exists()) {
-      const novel = novelSnap.val();
+    if (tweetSnap.exists()) {
+      const tweet = tweetSnap.val();
       const actor = await getProfile(req.user.uid);
-      if (novel.authorUid && novel.authorUid !== req.user.uid) {
-        await createNotification(novel.authorUid, "novel_like", {
-          novelId,
+      if (tweet.authorUid && tweet.authorUid !== req.user.uid) {
+        await createNotification(tweet.authorUid, "tweet_like", {
+          tweetId,
           actorUid: req.user.uid,
           actorNickname: actor?.nickname || "Someone",
           actorPhotoURL: actor?.photoURL || req.user.picture || "",
@@ -306,14 +346,14 @@ app.post("/api/novels/:novelId/like", asyncHandler(async (req, res) => {
     }
   }
 
-  const likesSnap = await db.ref(`novelLikes/${novelId}`).get();
+  const likesSnap = await db.ref(`tweetLikes/${tweetId}`).get();
   const likesCount = likesSnap.exists() ? Object.keys(likesSnap.val()).length : 0;
 
   return res.json({ liked: !likedSnap.exists(), likesCount });
 }));
 
-app.get("/api/novels/:novelId/comments", asyncHandler(async (req, res) => {
-  const snapshot = await db.ref(`novelComments/${req.params.novelId}`).get();
+app.get("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
+  const snapshot = await db.ref(`tweetComments/${req.params.tweetId}`).get();
   const comments = snapshot.exists() ? snapshot.val() : {};
 
   const result = Object.entries(comments)
@@ -323,7 +363,7 @@ app.get("/api/novels/:novelId/comments", asyncHandler(async (req, res) => {
   return res.json(result);
 }));
 
-app.post("/api/novels/:novelId/comments", asyncHandler(async (req, res) => {
+app.post("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
   const text = sanitizeText(req.body?.text, 800);
   if (text.length < 2) {
     return res.status(400).json({ error: "Comment must be at least 2 characters" });
@@ -333,12 +373,12 @@ app.post("/api/novels/:novelId/comments", asyncHandler(async (req, res) => {
   if (!profile?.nickname) {
     return res.status(403).json({ error: "Set your nickname before commenting" });
   }
-  const novelSnap = await db.ref(`novels/${req.params.novelId}`).get();
-  if (!novelSnap.exists()) {
-    return res.status(404).json({ error: "Novel not found" });
+  const tweetSnap = await db.ref(`tweets/${req.params.tweetId}`).get();
+  if (!tweetSnap.exists()) {
+    return res.status(404).json({ error: "Tweet not found" });
   }
 
-  const commentRef = db.ref(`novelComments/${req.params.novelId}`).push();
+  const commentRef = db.ref(`tweetComments/${req.params.tweetId}`).push();
   const comment = {
     authorUid: req.user.uid,
     authorNickname: profile.nickname,
@@ -348,10 +388,10 @@ app.post("/api/novels/:novelId/comments", asyncHandler(async (req, res) => {
   };
 
   await commentRef.set(comment);
-  const novel = novelSnap.val();
-  if (novel.authorUid && novel.authorUid !== req.user.uid) {
-    await createNotification(novel.authorUid, "novel_comment", {
-      novelId: req.params.novelId,
+  const tweet = tweetSnap.val();
+  if (tweet.authorUid && tweet.authorUid !== req.user.uid) {
+    await createNotification(tweet.authorUid, "tweet_comment", {
+      tweetId: req.params.tweetId,
       actorUid: req.user.uid,
       actorNickname: profile.nickname,
       actorPhotoURL: profile.photoURL || req.user.picture || "",
@@ -609,15 +649,21 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
 
   await msgRef.set(message);
   if (replyTo?.senderUid && replyTo.senderUid !== req.user.uid) {
-    const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
-    await createNotification(replyTo.senderUid, "group_reply", {
+    const isActiveInGroup = await isUserViewingContext(replyTo.senderUid, {
+      type: "group",
       groupId: req.params.groupId,
-      messageId: replyToMessageId,
-      actorUid: req.user.uid,
-      actorNickname: profile?.nickname || "Unknown",
-      actorPhotoURL: profile?.photoURL || req.user.picture || "",
-      messageText: replyPreview.slice(0, 120),
     });
+    if (!isActiveInGroup) {
+      const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
+      await createNotification(replyTo.senderUid, "group_reply", {
+        groupId: req.params.groupId,
+        messageId: replyToMessageId,
+        actorUid: req.user.uid,
+        actorNickname: profile?.nickname || "Unknown",
+        actorPhotoURL: profile?.photoURL || req.user.picture || "",
+        messageText: replyPreview.slice(0, 120),
+      });
+    }
   }
   return res.status(201).json({ id: msgRef.key, ...message });
 }));
@@ -681,14 +727,20 @@ app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
 
   await msgRef.set(message);
   if (replyTo?.senderUid && replyTo.senderUid !== req.user.uid) {
-    const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
-    await createNotification(replyTo.senderUid, "dm_reply", {
-      messageId: replyToMessageId,
-      actorUid: req.user.uid,
-      actorNickname: senderProfile?.nickname || "Unknown",
-      actorPhotoURL: senderProfile?.photoURL || req.user.picture || "",
-      messageText: replyPreview.slice(0, 120),
+    const isActiveInDm = await isUserViewingContext(replyTo.senderUid, {
+      type: "dm",
+      otherUid: req.user.uid,
     });
+    if (!isActiveInDm) {
+      const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
+      await createNotification(replyTo.senderUid, "dm_reply", {
+        messageId: replyToMessageId,
+        actorUid: req.user.uid,
+        actorNickname: senderProfile?.nickname || "Unknown",
+        actorPhotoURL: senderProfile?.photoURL || req.user.picture || "",
+        messageText: replyPreview.slice(0, 120),
+      });
+    }
   }
   return res.status(201).json({ id: msgRef.key, ...message });
 }));

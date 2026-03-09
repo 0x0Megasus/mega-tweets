@@ -1,11 +1,11 @@
 import { FaPlus, FaTimes } from "react-icons/fa";
 
-export default function PublishNovelModal({
+export default function PublishTweetModal({
   isOpen,
   onClose,
   postContent,
   setPostContent,
-  postNovel,
+  postTweet,
 }) {
   if (!isOpen) return null;
 
@@ -18,7 +18,7 @@ export default function PublishNovelModal({
             <FaTimes />
           </button>
         </div>
-        <form onSubmit={postNovel} className="stack-form modal-form">
+        <form onSubmit={postTweet} className="stack-form modal-form">
           <textarea
             value={postContent}
             onChange={(e) => setPostContent(e.target.value)}

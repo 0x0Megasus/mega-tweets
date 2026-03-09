@@ -64,6 +64,7 @@ export default function GroupsView(props) {
   } = props;
 
   const listRef = useRef(null);
+  const chatInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -233,6 +234,13 @@ export default function GroupsView(props) {
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusedGroupMessageId, groupMessages]);
+
+  useEffect(() => {
+    if (!selectedGroupData?.joined) return;
+    if (isMobile && mobileGroupPage !== "chat") return;
+    const timer = setTimeout(() => chatInputRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [selectedGroupData?.id, selectedGroupData?.joined, groupReplyTo, isMobile, mobileGroupPage]);
 
   return (
     <section className="groups-layout">
@@ -427,6 +435,7 @@ export default function GroupsView(props) {
                 )}
                 <form onSubmit={sendGroup} className="row-form chat-input-row">
                   <input
+                    ref={chatInputRef}
                     value={groupDraft}
                     onChange={(e) => setGroupDraft(e.target.value)}
                     placeholder="Write to group"

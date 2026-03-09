@@ -13,15 +13,15 @@ import DmView from "./components/DmView";
 import NotificationsView from "./components/NotificationsView";
 import ProfileView from "./components/ProfileView";
 import ConfirmLeaveModal from "./components/ConfirmLeaveModal";
-import PublishNovelModal from "./components/PublishNovelModal";
+import PublishTweetModal from "./components/PublishTweetModal";
 import NotFoundPage from "./components/NotFoundPage";
 
 const TABS = ["feed", "groups", "dm", "notifications", "profile"];
 
 const containsArabic = (t) => /[\u0600-\u06FF]/.test(t || "");
 const notifText = (n) => {
-  if (n.type === "novel_like") return `${n.actorNickname || "Someone"} liked your tweet`;
-  if (n.type === "novel_comment") return `${n.actorNickname || "Someone"} replied to your tweet`;
+  if (n.type === "tweet_like") return `${n.actorNickname || "Someone"} liked your tweet`;
+  if (n.type === "tweet_comment") return `${n.actorNickname || "Someone"} replied to your tweet`;
   if (n.type === "group_reply") return `${n.actorNickname || "Someone"} replied to your group message`;
   if (n.type === "dm_reply") return `${n.actorNickname || "Someone"} replied in DM`;
   return "New activity";
@@ -49,7 +49,7 @@ function App() {
   const [setupBio, setSetupBio] = useState("");
   const [profileDraft, setProfileDraft] = useState({ nickname: "", bio: "" });
 
-  const [novels, setNovels] = useState([]);
+  const [tweets, setTweets] = useState([]);
   const [commentCache, setCommentCache] = useState({});
   const [postContent, setPostContent] = useState("");
   const [editingId, setEditingId] = useState("");
@@ -120,7 +120,8 @@ function App() {
   const isGroupChatVisible = currentTab === "groups" && (!isMobile || mobileGroupPage === "chat");
   const isDmChatVisible = currentTab === "dm" && (!isMobile || mobileDmPage === "chat");
   const unreadNotificationsCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
-  const unseenFeedCount = useMemo(() => novels.filter((n) => !seenPostIds[n.id]).length, [novels, seenPostIds]);
+  const unreadNotifications = useMemo(() => notifications.filter((n) => !n.read), [notifications]);
+  const unseenFeedCount = useMemo(() => tweets.filter((n) => !seenPostIds[n.id]).length, [tweets, seenPostIds]);
   const badgeCounts = useMemo(
     () => ({ feed: unseenFeedCount, notifications: unreadNotificationsCount }),
     [unseenFeedCount, unreadNotificationsCount],
@@ -155,9 +156,9 @@ function App() {
   };
 
   useEffect(() => {
-    if (currentTab !== "feed" || !novels.length) return;
-    markPostsSeen(novels.map((n) => n.id));
-  }, [currentTab, novels]);
+    if (currentTab !== "feed" || !tweets.length) return;
+    markPostsSeen(tweets.map((n) => n.id));
+  }, [currentTab, tweets]);
 
   useEffect(() => {
     if (!focusedPostId) return;
@@ -191,9 +192,9 @@ function App() {
     setUsers(u); setNotifications(n); setGroups(g);
   };
 
-  const refreshNovels = async () => {
+  const refreshTweets = async () => {
     if (!token) return;
-    setNovels(await withLoad(() => api.novels(token)));
+    setTweets(await withLoad(() => api.tweets(token)));
   };
 
   useEffect(() => {
@@ -216,8 +217,8 @@ function App() {
     const boot = async () => {
       setBootLoading(true);
       try {
-        const [me, n, nv, g, u] = await withLoad(() => Promise.all([api.me(token), api.notifications(token), api.novels(token), api.groups(token), api.users(token)]));
-        setProfile(me); setNotifications(n); setNovels(nv); setGroups(g); setUsers(u);
+        const [me, n, nv, g, u] = await withLoad(() => Promise.all([api.me(token), api.notifications(token), api.tweets(token), api.groups(token), api.users(token)]));
+        setProfile(me); setNotifications(n); setTweets(nv); setGroups(g); setUsers(u);
         setProfileDraft({ nickname: me.nickname || "", bio: me.bio || "" });
         setSetupNickname(me.nickname || ""); setSetupBio(me.bio || "");
         if (g[0]) setSelectedGroup(g[0].id);
@@ -230,14 +231,86 @@ function App() {
   useEffect(() => {
     if (!token) return;
     let mounted = true;
+    let stopped = false;
+    let timer;
+    let isPageHidden = typeof document !== "undefined" ? document.hidden : false;
+
+    const syncGroupsAndNotifications = async () => {
+      if (!mounted || isPageHidden) return;
+      try {
+        const [nextNotifications, nextGroups] = await Promise.all([
+          api.notifications(token),
+          api.groups(token),
+        ]);
+        if (!mounted) return;
+        setNotifications(nextNotifications);
+        setGroups(nextGroups);
+      } catch {
+        // keep silent on background sync errors
+      }
+    };
+
+    const schedule = () => {
+      if (stopped || !mounted) return;
+      timer = setTimeout(async () => {
+        await syncGroupsAndNotifications();
+        schedule();
+      }, 8000);
+    };
+
+    const onVisibility = () => {
+      isPageHidden = document.hidden;
+      if (!isPageHidden) syncGroupsAndNotifications();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    syncGroupsAndNotifications().finally(schedule);
+    return () => {
+      mounted = false;
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [token]);
+
+  const activeView = useMemo(() => {
+    if (isGroupChatVisible && selectedGroup) return { type: "group", groupId: selectedGroup, otherUid: "" };
+    if (isDmChatVisible && dmTargetUid) return { type: "dm", groupId: "", otherUid: dmTargetUid };
+    return { type: "none", groupId: "", otherUid: "" };
+  }, [isGroupChatVisible, selectedGroup, isDmChatVisible, dmTargetUid]);
+
+  useEffect(() => {
+    if (!token) return;
+    let mounted = true;
+    let timer;
+    const pingPresence = async () => {
+      try {
+        await api.presenceView(token, activeView);
+      } catch {
+        // presence ping failures should not block UI
+      }
+    };
+    pingPresence();
+    timer = setInterval(() => {
+      if (mounted) pingPresence();
+    }, 8000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [token, activeView]);
+
+  useEffect(() => {
+    if (!token) return;
+    let mounted = true;
     let inFlight = false;
 
     const syncFeed = async () => {
       if (inFlight) return;
       inFlight = true;
       try {
-        const latest = await withLoad(() => api.novels(token), { global: false });
-        if (mounted) setNovels(latest);
+        const latest = await withLoad(() => api.tweets(token), { global: false });
+        if (mounted) setTweets(latest);
       } catch {
         // keep UI responsive even if periodic sync fails
       } finally {
@@ -395,27 +468,27 @@ function App() {
     } catch (x) { setError(x.message); }
   };
 
-  const postNovel = async (e) => {
+  const postTweet = async (e) => {
     e.preventDefault();
     const content = postContent.trim();
     if (content.length < 2) {
       setError("Tweet content must be at least 2 characters");
       return;
     }
-    try { await withLoad(() => api.createNovel(token, { content })); setPostContent(""); await refreshNovels(); }
+    try { await withLoad(() => api.createTweet(token, { content })); setPostContent(""); await refreshTweets(); }
     catch (x) { setError(x.message); }
   };
 
-  const likeNovel = async (id) => {
+  const likeTweet = async (id) => {
     try {
       setLikeLoadingId(id);
       // perform like without triggering fullscreen loader; update lists quietly
       await withLoad(() => api.toggleLike(token, id), { global: false });
       const [nv, u] = await Promise.all([
-        withLoad(() => api.novels(token), { global: false }),
+        withLoad(() => api.tweets(token), { global: false }),
         withLoad(() => api.users(token), { global: false }),
       ]);
-      setNovels(nv);
+      setTweets(nv);
       setUsers(u);
     } catch (e) {
       setError(e.message);
@@ -444,8 +517,8 @@ function App() {
       await withLoad(() => api.addComment(token, id, text), { global: false });
       const comments = await withLoad(() => api.comments(token, id), { global: false });
       setCommentCache((p) => ({ ...p, [id]: comments }));
-      // update novel's commentsCount locally without hitting global loader
-      setNovels((prev) => prev.map((n) => (n.id === id ? { ...n, commentsCount: (n.commentsCount || 0) + 1 } : n)));
+      // update tweet's commentsCount locally without hitting global loader
+      setTweets((prev) => prev.map((n) => (n.id === id ? { ...n, commentsCount: (n.commentsCount || 0) + 1 } : n)));
       e.currentTarget.reset();
     } catch (x) { setError(x.message); }
     finally { setCommentLoadingId(""); }
@@ -459,9 +532,9 @@ function App() {
       setError("Tweet content must be at least 2 characters");
       return;
     }
-    try { await withLoad(() => api.updateNovel(token, id, { content })); setEditingId(""); await refreshNovels(); } catch (x) { setError(x.message); }
+    try { await withLoad(() => api.updateTweet(token, id, { content })); setEditingId(""); await refreshTweets(); } catch (x) { setError(x.message); }
   };
-  const delNovel = async (id) => { try { await withLoad(() => api.deleteNovel(token, id)); await refreshNovels(); } catch (x) { setError(x.message); } };
+  const delTweet = async (id) => { try { await withLoad(() => api.deleteTweet(token, id)); await refreshTweets(); } catch (x) { setError(x.message); } };
 
   const createGroup = async (e) => { e.preventDefault(); try { const g = await withLoad(() => api.createGroup(token, { name: groupName, description: groupDesc })); setGroupName(""); setGroupDesc(""); setSelectedGroup(g.id); setMobileGroupPage("chat"); await refreshBase(); } catch (x) { setError(x.message); } };
 
@@ -550,9 +623,9 @@ function App() {
     if (!notification) return;
     if (!notification.read) await markRead(notification.id);
 
-    if ((notification.type === "novel_like" || notification.type === "novel_comment") && notification.novelId) {
-      const exists = novels.some((n) => n.id === notification.novelId);
-      setFocusedPostId(notification.novelId);
+    if ((notification.type === "tweet_like" || notification.type === "tweet_comment") && notification.tweetId) {
+      const exists = tweets.some((n) => n.id === notification.tweetId);
+      setFocusedPostId(notification.tweetId);
       navigate("/feed");
       if (!exists) setError("This post is no longer available.");
       return;
@@ -597,21 +670,21 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView novels={novels} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} />} />
+        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delTweet={delTweet} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} />} />
         <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} />} />
         <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} focusedDmMessageId={focusedDmMessageId} />} />
-        <Route path="/notifications" element={<NotificationsView notifications={notifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
+        <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
-      <PublishNovelModal
+      <PublishTweetModal
         isOpen={showPublishModal}
         onClose={() => setShowPublishModal(false)}
         postContent={postContent}
         setPostContent={setPostContent}
-        postNovel={(e) => {
-          postNovel(e);
+        postTweet={(e) => {
+          postTweet(e);
           setShowPublishModal(false);
         }}
       />

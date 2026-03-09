@@ -62,6 +62,7 @@ export default function DmView({
   focusedDmMessageId,
 }) {
   const listRef = useRef(null);
+  const chatInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -136,6 +137,13 @@ export default function DmView({
     if (!target) return;
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusedDmMessageId, dmMessages]);
+
+  useEffect(() => {
+    if (!dmTargetUid) return;
+    if (isMobile && mobileDmPage !== "chat") return;
+    const timer = setTimeout(() => chatInputRef.current?.focus(), 0);
+    return () => clearTimeout(timer);
+  }, [dmTargetUid, dmReplyTo, isMobile, mobileDmPage]);
 
   const isReplyToMe = (m) => m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid;
   const toDataUrl = (file, maxBytes, onDone) => {
@@ -362,6 +370,7 @@ export default function DmView({
               )}
               <form onSubmit={sendDm} className="row-form chat-input-row">
                 <input
+                  ref={chatInputRef}
                   value={dmDraft}
                   onChange={(e) => setDmDraft(e.target.value)}
                   placeholder="Write DM"
