@@ -108,7 +108,10 @@ h1, h2, h3, h4 { margin: 0; }
 .actions-row { margin-top: 2px; }
 .meta-row { justify-content: space-between; }
 .author-row small, .tweet-card small, .message-item small, .comment-item small { color: var(--muted); font-size: 12px; }
+.tweet-card .author-row { margin-bottom: 6px; }
 .tweet-card p { margin: 0; line-height: 1.65; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }
+.tweet-card .meta-row + p { margin-top: 4px; }
+.tweet-card .author-row.author-btn + p { margin-top: 4px; }
 .author-btn {
   width: auto;
   border: 0;
