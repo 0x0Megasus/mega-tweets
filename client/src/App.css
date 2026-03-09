@@ -774,6 +774,9 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .mobile-media-menu .icon-btn {
   margin-left: 0;
+  width: 38px;
+  height: 38px;
+  font-size: 16px;
 }
 
 .send-icon-btn {
