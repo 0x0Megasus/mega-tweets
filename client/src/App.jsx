@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { browserLocalPersistence, onAuthStateChanged, setPersistence, signInWithPopup, signOut } from "firebase/auth";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
@@ -17,22 +17,11 @@ import PublishNovelModal from "./components/PublishNovelModal";
 import NotFoundPage from "./components/NotFoundPage";
 
 const TABS = ["feed", "groups", "dm", "notifications", "profile"];
-const LANGS = ["English", "Arabic", "French", "Spanish", "German", "Portuguese", "Italian", "Turkish", "Hindi", "Urdu", "Japanese", "Korean", "Chinese", "Russian"];
-
-const timeAgo = (v) => {
-  const s = Math.floor((Date.now() - new Date(v).getTime()) / 1000);
-  if (Number.isNaN(s) || s < 0) return "now";
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.floor(s / 60)}m`;
-  if (s < 86400) return `${Math.floor(s / 3600)}h`;
-  if (s < 604800) return `${Math.floor(s / 86400)}d`;
-  return `${Math.floor(s / 604800)}w`;
-};
 
 const containsArabic = (t) => /[\u0600-\u06FF]/.test(t || "");
 const notifText = (n) => {
-  if (n.type === "novel_like") return `${n.actorNickname || "Someone"} liked your novel`;
-  if (n.type === "novel_comment") return `${n.actorNickname || "Someone"} commented on your novel`;
+  if (n.type === "novel_like") return `${n.actorNickname || "Someone"} liked your tweet`;
+  if (n.type === "novel_comment") return `${n.actorNickname || "Someone"} replied to your tweet`;
   if (n.type === "group_reply") return `${n.actorNickname || "Someone"} replied to your group message`;
   if (n.type === "dm_reply") return `${n.actorNickname || "Someone"} replied in DM`;
   return "New activity";
@@ -54,18 +43,16 @@ function App() {
   const [profile, setProfile] = useState(null);
   const [users, setUsers] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [focusedPostId, setFocusedPostId] = useState("");
+  const [seenPostIds, setSeenPostIds] = useState({});
   const [setupNickname, setSetupNickname] = useState("");
   const [setupBio, setSetupBio] = useState("");
   const [profileDraft, setProfileDraft] = useState({ nickname: "", bio: "" });
 
   const [novels, setNovels] = useState([]);
   const [commentCache, setCommentCache] = useState({});
-  const [postTitle, setPostTitle] = useState("");
-  const [postLanguage, setPostLanguage] = useState("English");
   const [postContent, setPostContent] = useState("");
   const [editingId, setEditingId] = useState("");
-  const [editTitle, setEditTitle] = useState("");
-  const [editLang, setEditLang] = useState("English");
   const [editContent, setEditContent] = useState("");
 
   const [groups, setGroups] = useState([]);
@@ -75,6 +62,8 @@ function App() {
   const [groupDraft, setGroupDraft] = useState("");
   const [groupReplyTo, setGroupReplyTo] = useState(null);
   const [groupSending, setGroupSending] = useState(false);
+  const [groupImageData, setGroupImageData] = useState("");
+  const [groupAudioData, setGroupAudioData] = useState("");
   const [groupName, setGroupName] = useState("");
   const [groupDesc, setGroupDesc] = useState("");
   const [inviteCodeInput, setInviteCodeInput] = useState("");
@@ -88,6 +77,8 @@ function App() {
   const [dmDraft, setDmDraft] = useState("");
   const [dmReplyTo, setDmReplyTo] = useState(null);
   const [dmSending, setDmSending] = useState(false);
+  const [dmImageData, setDmImageData] = useState("");
+  const [dmAudioData, setDmAudioData] = useState("");
   const [mobileDmPage, setMobileDmPage] = useState("list");
   const [dmMessagesLoading, setDmMessagesLoading] = useState(false);
   const [likeLoadingId, setLikeLoadingId] = useState("");
@@ -100,8 +91,77 @@ function App() {
 
   const busy = pendingCount > 0;
   const checking = authLoading || (Boolean(firebaseUser) && bootLoading);
+  const formatters = useMemo(() => ({
+    timeOnly: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }),
+    dateTime: new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+  }), []);
+  const timeAgo = useCallback((value) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "";
+
+    const now = new Date();
+    const sameDay = now.getFullYear() === date.getFullYear()
+      && now.getMonth() === date.getMonth()
+      && now.getDate() === date.getDate();
+
+    return sameDay ? formatters.timeOnly.format(date) : formatters.dateTime.format(date);
+  }, [formatters]);
+
   const selectedGroupData = useMemo(() => groups.find((g) => g.id === selectedGroup), [groups, selectedGroup]);
   const others = useMemo(() => users.filter((u) => u.uid !== profile?.uid && u.nickname), [users, profile]);
+  const isGroupChatVisible = currentTab === "groups" && (!isMobile || mobileGroupPage === "chat");
+  const isDmChatVisible = currentTab === "dm" && (!isMobile || mobileDmPage === "chat");
+  const unreadNotificationsCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
+  const unseenFeedCount = useMemo(() => novels.filter((n) => !seenPostIds[n.id]).length, [novels, seenPostIds]);
+  const badgeCounts = useMemo(
+    () => ({ feed: unseenFeedCount, notifications: unreadNotificationsCount }),
+    [unseenFeedCount, unreadNotificationsCount],
+  );
+
+  useEffect(() => {
+    if (!profile?.uid) { setSeenPostIds({}); return; }
+    const storageKey = `mega_tweets_seen_posts_${profile.uid}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      setSeenPostIds(raw ? JSON.parse(raw) : {});
+    } catch {
+      setSeenPostIds({});
+    }
+  }, [profile?.uid]);
+
+  const markPostsSeen = (postIds) => {
+    if (!profile?.uid || !postIds.length) return;
+    const storageKey = `mega_tweets_seen_posts_${profile.uid}`;
+    setSeenPostIds((prev) => {
+      let changed = false;
+      const next = { ...prev };
+      postIds.forEach((id) => {
+        if (!next[id]) {
+          next[id] = true;
+          changed = true;
+        }
+      });
+      if (changed) localStorage.setItem(storageKey, JSON.stringify(next));
+      return changed ? next : prev;
+    });
+  };
+
+  useEffect(() => {
+    if (currentTab !== "feed" || !novels.length) return;
+    markPostsSeen(novels.map((n) => n.id));
+  }, [currentTab, novels]);
+
+  useEffect(() => {
+    if (!focusedPostId) return;
+    const timeout = setTimeout(() => setFocusedPostId(""), 2200);
+    return () => clearTimeout(timeout);
+  }, [focusedPostId]);
 
   // withLoad: runs an async task and optionally increments global pending counter
   // pass options { global: false } to avoid triggering the global fullscreen loader
@@ -154,20 +214,57 @@ function App() {
   }, [token]);
 
   useEffect(() => {
-    if (!token || !selectedGroup) return;
+    if (!token) return;
     let mounted = true;
-    let timer;
+    let inFlight = false;
 
-    const loadMessages = async () => {
+    const syncFeed = async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
-        setGroupMessagesLoading(true);
+        const latest = await withLoad(() => api.novels(token), { global: false });
+        if (mounted) setNovels(latest);
+      } catch {
+        // keep UI responsive even if periodic sync fails
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const timer = setInterval(syncFeed, 20000);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !selectedGroup || !isGroupChatVisible) return;
+    let mounted = true;
+    let stopped = false;
+    let timer;
+    let inFlight = false;
+    let isPageHidden = typeof document !== "undefined" ? document.hidden : false;
+
+    const loadMessages = async ({ showLoader = false } = {}) => {
+      if (inFlight || !mounted || isPageHidden) return;
+      inFlight = true;
+      try {
+        if (showLoader) setGroupMessagesLoading(true);
         const [members, messages] = await Promise.all([
           api.groupMembers(token, selectedGroup),
           api.groupMessages(token, selectedGroup),
         ]);
         if (!mounted) return;
-        setGroupMembers(members);
-        setGroupMessages(messages);
+        setGroupMembers((prev) => {
+          const sameSize = prev.length === members.length;
+          if (sameSize && prev.every((m, i) => m.uid === members[i]?.uid && m.isAdmin === members[i]?.isAdmin)) return prev;
+          return members;
+        });
+        setGroupMessages((prev) => {
+          if (prev.length === messages.length && prev[prev.length - 1]?.id === messages[messages.length - 1]?.id) return prev;
+          return messages;
+        });
       } catch (e) {
         if (!mounted) return;
         if (String(e.message).includes("Join this group")) {
@@ -177,44 +274,84 @@ function App() {
         }
         setError(e.message);
       } finally {
-        if (mounted) setGroupMessagesLoading(false);
+        if (mounted && showLoader) setGroupMessagesLoading(false);
+        inFlight = false;
       }
     };
 
-    loadMessages();
-    // Poll every 10 seconds instead of 2 for better performance
-    timer = setInterval(loadMessages, 10000);
+    const schedulePoll = () => {
+      if (stopped || !mounted) return;
+      timer = setTimeout(async () => {
+        await loadMessages();
+        schedulePoll();
+      }, 10000);
+    };
+
+    const onVisibility = () => {
+      isPageHidden = document.hidden;
+      if (!isPageHidden) loadMessages();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    loadMessages({ showLoader: true }).finally(schedulePoll);
     return () => {
       mounted = false;
-      clearInterval(timer);
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [token, selectedGroup]);
+  }, [token, selectedGroup, isGroupChatVisible]);
 
   useEffect(() => {
-    if (!token || !dmTargetUid) return;
+    if (!token || !dmTargetUid || !isDmChatVisible) return;
     let mounted = true;
+    let stopped = false;
     let timer;
+    let inFlight = false;
+    let isPageHidden = typeof document !== "undefined" ? document.hidden : false;
 
-    const loadDmMessages = async () => {
+    const loadDmMessages = async ({ showLoader = false } = {}) => {
+      if (inFlight || !mounted || isPageHidden) return;
+      inFlight = true;
       try {
-        setDmMessagesLoading(true);
+        if (showLoader) setDmMessagesLoading(true);
         const messages = await api.dmMessages(token, dmTargetUid);
-        if (mounted) setDmMessages(messages);
+        if (mounted) {
+          setDmMessages((prev) => {
+            if (prev.length === messages.length && prev[prev.length - 1]?.id === messages[messages.length - 1]?.id) return prev;
+            return messages;
+          });
+        }
       } catch (e) {
         if (mounted) setError(e.message);
       } finally {
-        if (mounted) setDmMessagesLoading(false);
+        if (mounted && showLoader) setDmMessagesLoading(false);
+        inFlight = false;
       }
     };
 
-    loadDmMessages();
-    // Poll every 10 seconds instead of 2 for better performance
-    timer = setInterval(loadDmMessages, 10000);
+    const schedulePoll = () => {
+      if (stopped || !mounted) return;
+      timer = setTimeout(async () => {
+        await loadDmMessages();
+        schedulePoll();
+      }, 10000);
+    };
+
+    const onVisibility = () => {
+      isPageHidden = document.hidden;
+      if (!isPageHidden) loadDmMessages();
+    };
+
+    document.addEventListener("visibilitychange", onVisibility);
+    loadDmMessages({ showLoader: true }).finally(schedulePoll);
     return () => {
       mounted = false;
-      clearInterval(timer);
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [token, dmTargetUid]);
+  }, [token, dmTargetUid, isDmChatVisible]);
 
   const login = async () => {
     setLoginLoading(true); setError("");
@@ -246,7 +383,12 @@ function App() {
 
   const postNovel = async (e) => {
     e.preventDefault();
-    try { await withLoad(() => api.createNovel(token, { title: postTitle, language: postLanguage, content: postContent })); setPostTitle(""); setPostLanguage("English"); setPostContent(""); await refreshNovels(); }
+    const content = postContent.trim();
+    if (content.length < 2) {
+      setError("Tweet content must be at least 2 characters");
+      return;
+    }
+    try { await withLoad(() => api.createNovel(token, { content })); setPostContent(""); await refreshNovels(); }
     catch (x) { setError(x.message); }
   };
 
@@ -295,8 +437,16 @@ function App() {
     finally { setCommentLoadingId(""); }
   };
 
-  const startEdit = (n) => { setEditingId(n.id); setEditTitle(n.title); setEditLang(n.language); setEditContent(n.content); };
-  const saveEdit = async (e, id) => { e.preventDefault(); try { await withLoad(() => api.updateNovel(token, id, { title: editTitle, language: editLang, content: editContent })); setEditingId(""); await refreshNovels(); } catch (x) { setError(x.message); } };
+  const startEdit = (n) => { setEditingId(n.id); setEditContent(n.content); };
+  const saveEdit = async (e, id) => {
+    e.preventDefault();
+    const content = editContent.trim();
+    if (content.length < 2) {
+      setError("Tweet content must be at least 2 characters");
+      return;
+    }
+    try { await withLoad(() => api.updateNovel(token, id, { content })); setEditingId(""); await refreshNovels(); } catch (x) { setError(x.message); }
+  };
   const delNovel = async (id) => { try { await withLoad(() => api.deleteNovel(token, id)); await refreshNovels(); } catch (x) { setError(x.message); } };
 
   const createGroup = async (e) => { e.preventDefault(); try { const g = await withLoad(() => api.createGroup(token, { name: groupName, description: groupDesc })); setGroupName(""); setGroupDesc(""); setSelectedGroup(g.id); setMobileGroupPage("chat"); await refreshBase(); } catch (x) { setError(x.message); } };
@@ -330,15 +480,20 @@ function App() {
 
   const sendGroup = async (e) => {
     e.preventDefault();
-    if (!groupDraft.trim() || !selectedGroup || groupSending) return;
+    const text = groupDraft.trim();
+    if ((!text && !groupImageData && !groupAudioData) || !selectedGroup || groupSending) return;
     try {
       setGroupSending(true);
       const created = await api.sendGroupMessage(token, selectedGroup, {
-        text: groupDraft,
+        text,
+        imageData: groupImageData,
+        audioData: groupAudioData,
         replyToMessageId: groupReplyTo?.id || "",
       });
       setGroupMessages((prev) => [...prev, created]);
       setGroupDraft("");
+      setGroupImageData("");
+      setGroupAudioData("");
       setGroupReplyTo(null);
     }
     catch (x) { setError(x.message); }
@@ -347,22 +502,74 @@ function App() {
 
   const sendDm = async (e) => {
     e.preventDefault();
-    if (!dmDraft.trim() || !dmTargetUid || dmSending) return;
+    const text = dmDraft.trim();
+    if ((!text && !dmImageData && !dmAudioData) || !dmTargetUid || dmSending) return;
     try {
       setDmSending(true);
       const created = await api.sendDm(token, dmTargetUid, {
-        text: dmDraft,
+        text,
+        imageData: dmImageData,
+        audioData: dmAudioData,
         replyToMessageId: dmReplyTo?.id || "",
       });
       setDmMessages((prev) => [...prev, created]);
       setDmDraft("");
+      setDmImageData("");
+      setDmAudioData("");
       setDmReplyTo(null);
     }
     catch (x) { setError(x.message); }
     finally { setDmSending(false); }
   };
 
-  const markRead = async (id) => { try { await withLoad(() => api.markNotificationRead(token, id)); setNotifications((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n))); } catch (x) { setError(x.message); } };
+  const markRead = async (id) => { try { await withLoad(() => api.markNotificationRead(token, id), { global: false }); setNotifications((p) => p.map((n) => (n.id === id ? { ...n, read: true } : n))); } catch (x) { setError(x.message); } };
+  const clearNotifications = async () => {
+    try {
+      await withLoad(() => api.clearNotifications(token), { global: false });
+      setNotifications([]);
+    } catch (x) {
+      setError(x.message);
+    }
+  };
+
+  const openNotification = async (notification) => {
+    if (!notification) return;
+    if (!notification.read) await markRead(notification.id);
+
+    if ((notification.type === "novel_like" || notification.type === "novel_comment") && notification.novelId) {
+      const exists = novels.some((n) => n.id === notification.novelId);
+      setFocusedPostId(notification.novelId);
+      navigate("/feed");
+      if (!exists) setError("This post is no longer available.");
+      return;
+    }
+    if (notification.type === "group_reply" && notification.groupId) {
+      const group = groups.find((g) => g.id === notification.groupId);
+      if (!group) {
+        navigate("/groups");
+        setError("This group is no longer available.");
+        return;
+      }
+      setSelectedGroup(notification.groupId);
+      setMobileGroupPage("chat");
+      navigate("/groups");
+      if (!group.joined) setError("You are no longer a member of this group.");
+      return;
+    }
+    if (notification.type === "dm_reply" && notification.actorUid) {
+      const exists = users.some((u) => u.uid === notification.actorUid);
+      if (!exists) {
+        navigate("/dm");
+        setError("This user is no longer available.");
+        return;
+      }
+      setDmTargetUid(notification.actorUid);
+      setMobileDmPage("chat");
+      navigate("/dm");
+      return;
+    }
+    navigate("/notifications");
+  };
 
   if (checking) return <div className="center-screen loading-screen"><div className="spinner" /></div>;
   if (!firebaseUser) return <AuthLanding login={login} loginLoading={loginLoading} error={error} />;
@@ -370,14 +577,14 @@ function App() {
 
   return (
     <div className="app-shell">
-      <TopNav tabs={TABS} tab={currentTab} setTab={(nextTab) => navigate(`/${nextTab}`)} profile={profile} firebaseUser={firebaseUser} onLogout={logout} />
+      <TopNav tabs={TABS} tab={currentTab} setTab={(nextTab) => navigate(`/${nextTab}`)} profile={profile} firebaseUser={firebaseUser} onLogout={logout} badgeCounts={badgeCounts} />
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView LANGS={LANGS} postTitle={postTitle} setPostTitle={setPostTitle} postLanguage={postLanguage} setPostLanguage={setPostLanguage} postContent={postContent} setPostContent={setPostContent} postNovel={postNovel} novels={novels} editingId={editingId} editTitle={editTitle} setEditTitle={setEditTitle} editLang={editLang} setEditLang={setEditLang} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} />} />
-        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupMembers={groupMembers} promote={promote} removeMember={removeMember} />} />
-        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} />} />
-        <Route path="/notifications" element={<NotificationsView notifications={notifications} notifText={notifText} timeAgo={timeAgo} markRead={markRead} />} />
+        <Route path="/feed" element={<FeedView novels={novels} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} />} />
+        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} />} />
+        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} />} />
+        <Route path="/notifications" element={<NotificationsView notifications={notifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
@@ -385,11 +592,6 @@ function App() {
       <PublishNovelModal
         isOpen={showPublishModal}
         onClose={() => setShowPublishModal(false)}
-        LANGS={LANGS}
-        postTitle={postTitle}
-        setPostTitle={setPostTitle}
-        postLanguage={postLanguage}
-        setPostLanguage={setPostLanguage}
         postContent={postContent}
         setPostContent={setPostContent}
         postNovel={(e) => {

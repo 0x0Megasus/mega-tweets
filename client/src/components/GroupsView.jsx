@@ -1,5 +1,28 @@
-import { useEffect, useMemo, useRef } from "react";
-import { FaComments, FaCopy, FaCrown, FaPaperPlane, FaReply, FaUsers, FaTimes } from "react-icons/fa";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  FaArrowDown,
+  FaComments,
+  FaCopy,
+  FaCrown,
+  FaFileAudio,
+  FaImage,
+  FaMicrophone,
+  FaPaperPlane,
+  FaReply,
+  FaStop,
+  FaUsers,
+  FaTimes,
+} from "react-icons/fa";
+
+const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
+)}`;
+
+const pickAvatar = (...values) => values.find((value) => typeof value === "string" && value.trim()) || FALLBACK_AVATAR;
+const handleAvatarError = (e) => {
+  e.currentTarget.onerror = null;
+  e.currentTarget.src = FALLBACK_AVATAR;
+};
 
 export default function GroupsView(props) {
   const {
@@ -28,6 +51,10 @@ export default function GroupsView(props) {
     setGroupDraft,
     sendGroup,
     groupSending,
+    groupImageData,
+    setGroupImageData,
+    groupAudioData,
+    setGroupAudioData,
     groupMembers,
     promote,
     removeMember,
@@ -35,6 +62,17 @@ export default function GroupsView(props) {
   } = props;
 
   const listRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const audioInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const recordingTimerRef = useRef(null);
+  const audioChunksRef = useRef([]);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const memberByUid = Object.fromEntries((groupMembers || []).map((member) => [member.uid, member]));
+  const lastMessageIdRef = useRef("");
+  const lastGroupRef = useRef("");
+  const [showScrollDown, setShowScrollDown] = useState(false);
 
   const sortedMembers = useMemo(() => {
     return [...groupMembers].sort((a, b) => {
@@ -74,11 +112,116 @@ export default function GroupsView(props) {
   };
 
   const isReplyToMe = (m) => m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid;
+  const toDataUrl = (file, maxBytes, onDone) => {
+    if (!file) return;
+    if (file.size > maxBytes) return;
+    const reader = new FileReader();
+    reader.onload = () => onDone(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(file);
+  };
+
+  const resetRecorder = () => {
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    mediaRecorderRef.current?.stream?.getTracks?.().forEach((track) => track.stop());
+    mediaRecorderRef.current = null;
+    audioChunksRef.current = [];
+    setRecordingSeconds(0);
+    setIsRecording(false);
+  };
+
+  const blobToDataUrl = (blob, onDone) => {
+    const reader = new FileReader();
+    reader.onloadend = () => onDone(typeof reader.result === "string" ? reader.result : "");
+    reader.readAsDataURL(blob);
+  };
+
+  const stopRecording = () => {
+    if (!isRecording || !mediaRecorderRef.current) return;
+    try {
+      mediaRecorderRef.current.stop();
+    } catch {
+      resetRecorder();
+    }
+  };
+
+  const startRecording = async () => {
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      window.alert("Voice messages are not supported in this browser.");
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const recorder = new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+      audioChunksRef.current = [];
+      recorder.ondataavailable = (e) => { if (e.data?.size) audioChunksRef.current.push(e.data); };
+      recorder.onstop = () => {
+        const blob = new Blob(audioChunksRef.current, { type: "audio/webm" });
+        blobToDataUrl(blob, (data) => {
+          setGroupAudioData(data);
+          if (data) setGroupImageData("");
+        });
+        resetRecorder();
+      };
+      recorder.start();
+      setGroupAudioData("");
+      setRecordingSeconds(0);
+      setIsRecording(true);
+      recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
+    } catch (err) {
+      console.error(err);
+      window.alert("Unable to start recording. Please check microphone permissions.");
+      resetRecorder();
+    }
+  };
+
+  useEffect(() => () => resetRecorder(), []);
+
+  const isNearBottom = useCallback(() => {
+    const list = listRef.current;
+    if (!list) return true;
+    const distanceFromBottom = list.scrollHeight - list.scrollTop - list.clientHeight;
+    return distanceFromBottom < 40;
+  }, []);
+
+  const scrollToBottom = useCallback((behavior = "smooth") => {
+    const list = listRef.current;
+    if (!list) return;
+    list.scrollTo({ top: list.scrollHeight, behavior });
+  }, []);
+
+  const handleListScroll = useCallback(() => {
+    setShowScrollDown(!isNearBottom());
+  }, [isNearBottom]);
 
   useEffect(() => {
-    if (!listRef.current) return;
-    listRef.current.scrollTop = listRef.current.scrollHeight;
-  }, [groupMessages, selectedGroup]);
+    const list = listRef.current;
+    if (!list) return;
+    list.addEventListener("scroll", handleListScroll);
+    return () => list.removeEventListener("scroll", handleListScroll);
+  }, [handleListScroll, selectedGroup]);
+
+  useEffect(() => {
+    const latestMessageId = groupMessages[groupMessages.length - 1]?.id || "";
+    const changedGroup = lastGroupRef.current !== selectedGroup;
+
+    if (changedGroup) {
+      lastGroupRef.current = selectedGroup;
+      lastMessageIdRef.current = latestMessageId;
+      requestAnimationFrame(() => setShowScrollDown(!isNearBottom()));
+      return;
+    }
+
+    const hasNewMessage = Boolean(latestMessageId) && latestMessageId !== lastMessageIdRef.current;
+    if (hasNewMessage && listRef.current) {
+      listRef.current.scrollTo({ top: listRef.current.scrollHeight, behavior: "smooth" });
+    }
+    lastMessageIdRef.current = latestMessageId;
+    requestAnimationFrame(() => setShowScrollDown(!isNearBottom()));
+  }, [groupMessages, selectedGroup, isNearBottom]);
 
   return (
     <section className="groups-layout">
@@ -157,47 +300,75 @@ export default function GroupsView(props) {
                     </button>
                   </div>
                 )}
-                <div ref={listRef} className="messages-box">
-                  {groupMessagesLoading ? (
-                    <div className="empty-messages"><div className="spinner" /></div>
-                  ) : groupMessages.length ? (
-                    groupMessages.map((m) => (
-                      <div
-                        key={m.id}
-                        className={`message-item ${m.senderUid === profile.uid ? "mine" : ""} ${
-                          isReplyToMe(m) ? "is-reply-to-me" : ""
-                        }`}
-                      >
-                        <img
-                          src={m.senderPhotoURL || ""}
-                          alt={m.senderNickname}
-                          className="avatar-msg"
-                        />
-                        <div className="msg-bubble">
-                          <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
-                            {m.senderNickname}
-                          </strong>
-                          {m.replyTo && (
-                            <p className="reply-preview">
-                              @{m.replyTo.senderNickname}: {m.replyTo.text}
-                            </p>
-                          )}
-                          <p>{m.text}</p>
-                          <small>{timeAgo(m.createdAt)}</small>
-                          {m.senderUid !== profile.uid && (
-                            <button
-                              type="button"
-                              className="reply-btn"
-                              onClick={() => setGroupReplyTo(m)}
-                            >
-                              <FaReply /> Reply
-                            </button>
-                          )}
+                <div className="messages-wrap">
+                  <div ref={listRef} className="messages-box">
+                    {groupMessagesLoading ? (
+                      <div className="empty-messages"><div className="spinner" /></div>
+                    ) : groupMessages.length ? (
+                      groupMessages.map((m) => (
+                        <div
+                          key={m.id}
+                          className={`message-item ${m.senderUid === profile.uid ? "mine" : ""} ${
+                            isReplyToMe(m) ? "is-reply-to-me" : ""
+                          }`}
+                        >
+                          <img
+                            src={pickAvatar(
+                              m.senderPhotoURL,
+                              m.senderPhotoUrl,
+                              m.photoURL,
+                              m.photoUrl,
+                              memberByUid[m.senderUid]?.photoURL,
+                              memberByUid[m.senderUid]?.photoUrl,
+                            )}
+                            alt={m.senderNickname}
+                            className="avatar-msg"
+                            onError={handleAvatarError}
+                          />
+                          <div className="msg-bubble">
+                            <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
+                              {m.senderNickname}
+                            </strong>
+                            {m.replyTo && (
+                              <p className="reply-preview">
+                                @{m.replyTo.senderNickname}: {m.replyTo.text}
+                              </p>
+                            )}
+                            <p>{m.text}</p>
+                            {m.imageData && <img src={m.imageData} alt="Attachment" className="chat-media-image" />}
+                            {m.audioData && (
+                              <audio controls className="chat-media-audio">
+                                <source src={m.audioData} />
+                              </audio>
+                            )}
+                            <small className="msg-time">{timeAgo(m.createdAt)}</small>
+                            {m.senderUid !== profile.uid && (
+                              <button
+                                type="button"
+                                className="reply-btn"
+                                onClick={() => setGroupReplyTo(m)}
+                              >
+                                <FaReply /> Reply
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="empty-messages">No group messages yet.</p>
+                      ))
+                    ) : (
+                      <p className="empty-messages">No group messages yet.</p>
+                    )}
+                  </div>
+                  {showScrollDown && groupMessages.length > 0 && !groupMessagesLoading && (
+                    <button
+                      type="button"
+                      className="scroll-bottom-btn"
+                      onClick={() => {
+                        scrollToBottom();
+                        setShowScrollDown(false);
+                      }}
+                    >
+                      <FaArrowDown /> Latest
+                    </button>
                   )}
                 </div>
                 {groupReplyTo && (
@@ -208,17 +379,83 @@ export default function GroupsView(props) {
                     </button>
                   </div>
                 )}
+                {(groupImageData || groupAudioData) && (
+                  <div className="attachment-preview-row">
+                    {groupImageData && <img src={groupImageData} alt="Selected attachment" className="chat-media-image preview" />}
+                    {groupAudioData && (
+                      <audio controls className="chat-media-audio">
+                        <source src={groupAudioData} />
+                      </audio>
+                    )}
+                    <button
+                      type="button"
+                      className="icon-btn"
+                      onClick={() => {
+                        setGroupImageData("");
+                        setGroupAudioData("");
+                      }}
+                    >
+                      <FaTimes />
+                    </button>
+                  </div>
+                )}
                 <form onSubmit={sendGroup} className="row-form chat-input-row">
                   <input
                     value={groupDraft}
                     onChange={(e) => setGroupDraft(e.target.value)}
                     placeholder="Write to group"
-                    required
                   />
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden-file-input"
+                    onChange={(e) => toDataUrl(e.target.files?.[0], 1_000_000, (data) => {
+                      setGroupImageData(data);
+                      if (data) setGroupAudioData("");
+                    })}
+                  />
+                  <input
+                    ref={audioInputRef}
+                    type="file"
+                    accept="audio/*"
+                    className="hidden-file-input"
+                    onChange={(e) => toDataUrl(e.target.files?.[0], 2_200_000, (data) => {
+                      setGroupAudioData(data);
+                      if (data) setGroupImageData("");
+                    })}
+                  />
+                  <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
+                    <FaImage />
+                  </button>
+                  <button
+                    type="button"
+                    className={`icon-btn ${isRecording ? "recording" : ""}`}
+                    onClick={isRecording ? stopRecording : startRecording}
+                    title={isRecording ? "Stop recording" : "Record voice message"}
+                  >
+                    {isRecording ? <FaStop /> : <FaMicrophone />}
+                  </button>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    onClick={() => audioInputRef.current?.click()}
+                    title="Upload audio file"
+                  >
+                    <FaFileAudio />
+                  </button>
                   <button type="submit" className="send-icon-btn" disabled={groupSending}>
                     {groupSending ? <span className="btn-spinner" /> : <FaPaperPlane />}
                   </button>
                 </form>
+                {isRecording && (
+                  <div className="recording-chip">
+                    <span className="record-dot" /> Recording {recordingSeconds}s
+                    <button type="button" onClick={stopRecording} className="stop-recording-btn">
+                      <FaStop /> Stop
+                    </button>
+                  </div>
+                )}
               </>
             ) : (
               <p>Join the group to see its messages.</p>
@@ -237,7 +474,12 @@ export default function GroupsView(props) {
               {sortedMembers.map((m) => (
                 <div key={m.uid} className="admin-member-row">
                   <div className="member-main">
-                    <img src={m.photoURL || ""} alt={m.nickname} className="avatar-member" />
+                    <img
+                      src={pickAvatar(m.photoURL, m.photoUrl)}
+                      alt={m.nickname}
+                      className="avatar-member"
+                      onError={handleAvatarError}
+                    />
                     <div>
                       <strong>{m.nickname}</strong>
                       {m.isAdmin && (

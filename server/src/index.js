@@ -8,29 +8,13 @@ const { auth, db } = await import("./firebaseAdmin.js");
 const app = express();
 const port = Number(process.env.PORT || 4000);
 const appName = "Mega Novels API";
-const ALLOWED_LANGUAGES = [
-  "English",
-  "Arabic",
-  "French",
-  "Spanish",
-  "German",
-  "Portuguese",
-  "Italian",
-  "Turkish",
-  "Hindi",
-  "Urdu",
-  "Japanese",
-  "Korean",
-  "Chinese",
-  "Russian",
-];
 
 app.use(
   cors({
     origin: process.env.CORS_ORIGIN || "http://localhost:5173",
   }),
 );
-app.use(express.json({ limit: "1mb" }));
+app.use(express.json({ limit: "6mb" }));
 
 const nowIso = () => new Date().toISOString();
 const asyncHandler = (fn) => (req, res, next) =>
@@ -42,6 +26,15 @@ function sanitizeText(input, maxLength = 1200) {
   }
 
   return input.trim().slice(0, maxLength);
+}
+
+function sanitizeDataUrl(input, allowedPrefix, maxLength) {
+  if (typeof input !== "string") return "";
+  const value = input.trim();
+  if (!value) return "";
+  if (!value.startsWith(allowedPrefix)) return "";
+  if (value.length > maxLength) return "";
+  return value;
 }
 
 function conversationId(uidA, uidB) {
@@ -102,7 +95,7 @@ const authRequired = asyncHandler(async (req, res, next) => {
 });
 
 app.get("/api/health", (_, res) => {
-  res.json({ ok: true, service: "mega-novels-api", at: nowIso(), allowedLanguages: ALLOWED_LANGUAGES });
+  res.json({ ok: true, service: "mega-novels-api", at: nowIso() });
 });
 
 app.use("/api", authRequired);
@@ -184,6 +177,11 @@ app.post("/api/notifications/read", asyncHandler(async (req, res) => {
   return res.json({ ok: true });
 }));
 
+app.post("/api/notifications/clear", asyncHandler(async (req, res) => {
+  await db.ref(`notifications/${req.user.uid}`).remove();
+  return res.json({ ok: true });
+}));
+
 app.get("/api/novels", asyncHandler(async (_, res) => {
   const [novelsSnap, likesSnap, commentsSnap] = await Promise.all([
     db.ref("novels").get(),
@@ -208,18 +206,10 @@ app.get("/api/novels", asyncHandler(async (_, res) => {
 }));
 
 app.post("/api/novels", asyncHandler(async (req, res) => {
-  const title = sanitizeText(req.body?.title, 120);
-  const language = sanitizeText(req.body?.language, 30);
   const content = sanitizeText(req.body?.content, 6000);
-  const matchedLanguage = ALLOWED_LANGUAGES.find(
-    (item) => item.toLowerCase() === language.toLowerCase(),
-  );
 
-  if (!title || !language || content.length < 20) {
-    return res.status(400).json({ error: "Title, language, and content (20+ chars) are required" });
-  }
-  if (!matchedLanguage) {
-    return res.status(400).json({ error: "Unsupported language" });
+  if (content.length < 2) {
+    return res.status(400).json({ error: "Content must be at least 2 characters" });
   }
 
   const profile = await getProfile(req.user.uid);
@@ -233,8 +223,6 @@ app.post("/api/novels", asyncHandler(async (req, res) => {
     authorUid: req.user.uid,
     authorNickname: profile.nickname,
     authorPhotoURL: profile.photoURL || req.user.picture || "",
-    title,
-    language: matchedLanguage,
     content,
     createdAt: nowIso(),
   };
@@ -245,18 +233,10 @@ app.post("/api/novels", asyncHandler(async (req, res) => {
 
 app.put("/api/novels/:novelId", asyncHandler(async (req, res) => {
   const { novelId } = req.params;
-  const title = sanitizeText(req.body?.title, 120);
-  const language = sanitizeText(req.body?.language, 30);
   const content = sanitizeText(req.body?.content, 6000);
-  const matchedLanguage = ALLOWED_LANGUAGES.find(
-    (item) => item.toLowerCase() === language.toLowerCase(),
-  );
 
-  if (!title || !language || content.length < 20) {
-    return res.status(400).json({ error: "Title, language, and content (20+ chars) are required" });
-  }
-  if (!matchedLanguage) {
-    return res.status(400).json({ error: "Unsupported language" });
+  if (content.length < 2) {
+    return res.status(400).json({ error: "Content must be at least 2 characters" });
   }
 
   const novelRef = db.ref(`novels/${novelId}`);
@@ -272,8 +252,6 @@ app.put("/api/novels/:novelId", asyncHandler(async (req, res) => {
 
   const updatedNovel = {
     ...existingNovel,
-    title,
-    language: matchedLanguage,
     content,
     updatedAt: nowIso(),
   };
@@ -320,9 +298,9 @@ app.post("/api/novels/:novelId/like", asyncHandler(async (req, res) => {
       if (novel.authorUid && novel.authorUid !== req.user.uid) {
         await createNotification(novel.authorUid, "novel_like", {
           novelId,
-          novelTitle: novel.title || "",
           actorUid: req.user.uid,
           actorNickname: actor?.nickname || "Someone",
+          actorPhotoURL: actor?.photoURL || req.user.picture || "",
         });
       }
     }
@@ -374,9 +352,9 @@ app.post("/api/novels/:novelId/comments", asyncHandler(async (req, res) => {
   if (novel.authorUid && novel.authorUid !== req.user.uid) {
     await createNotification(novel.authorUid, "novel_comment", {
       novelId: req.params.novelId,
-      novelTitle: novel.title || "",
       actorUid: req.user.uid,
       actorNickname: profile.nickname,
+      actorPhotoURL: profile.photoURL || req.user.picture || "",
       commentText: text.slice(0, 120),
     });
   }
@@ -591,9 +569,11 @@ app.get("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
 
 app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
   const text = sanitizeText(req.body?.text, 1200);
+  const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
+  const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
   const replyToMessageId = sanitizeText(req.body?.replyToMessageId, 120);
-  if (text.length < 1) {
-    return res.status(400).json({ error: "Message is required" });
+  if (text.length < 1 && !imageData && !audioData) {
+    return res.status(400).json({ error: "Message or attachment is required" });
   }
 
   const memberSnap = await db.ref(`groupMembers/${req.params.groupId}/${req.user.uid}`).get();
@@ -621,17 +601,21 @@ app.post("/api/groups/:groupId/messages", asyncHandler(async (req, res) => {
     senderNickname: profile?.nickname || "Unknown",
     senderPhotoURL: profile?.photoURL || req.user.picture || "",
     text,
+    imageData,
+    audioData,
     replyTo,
     createdAt: nowIso(),
   };
 
   await msgRef.set(message);
   if (replyTo?.senderUid && replyTo.senderUid !== req.user.uid) {
+    const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
     await createNotification(replyTo.senderUid, "group_reply", {
       groupId: req.params.groupId,
       actorUid: req.user.uid,
       actorNickname: profile?.nickname || "Unknown",
-      messageText: text.slice(0, 120),
+      actorPhotoURL: profile?.photoURL || req.user.picture || "",
+      messageText: replyPreview.slice(0, 120),
     });
   }
   return res.status(201).json({ id: msgRef.key, ...message });
@@ -652,10 +636,12 @@ app.get("/api/dms/:otherUid", asyncHandler(async (req, res) => {
 app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
   const otherUid = req.params.otherUid;
   const text = sanitizeText(req.body?.text, 1200);
+  const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
+  const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
   const replyToMessageId = sanitizeText(req.body?.replyToMessageId, 120);
 
-  if (text.length < 1) {
-    return res.status(400).json({ error: "Message is required" });
+  if (text.length < 1 && !imageData && !audioData) {
+    return res.status(400).json({ error: "Message or attachment is required" });
   }
 
   const receiverProfile = await getProfile(otherUid);
@@ -686,16 +672,20 @@ app.post("/api/dms/:otherUid", asyncHandler(async (req, res) => {
     senderNickname: senderProfile?.nickname || "Unknown",
     senderPhotoURL: senderProfile?.photoURL || req.user.picture || "",
     text,
+    imageData,
+    audioData,
     replyTo,
     createdAt: nowIso(),
   };
 
   await msgRef.set(message);
   if (replyTo?.senderUid && replyTo.senderUid !== req.user.uid) {
+    const replyPreview = text || (imageData ? "Sent an image" : "Sent a voice message");
     await createNotification(replyTo.senderUid, "dm_reply", {
       actorUid: req.user.uid,
       actorNickname: senderProfile?.nickname || "Unknown",
-      messageText: text.slice(0, 120),
+      actorPhotoURL: senderProfile?.photoURL || req.user.picture || "",
+      messageText: replyPreview.slice(0, 120),
     });
   }
   return res.status(201).json({ id: msgRef.key, ...message });

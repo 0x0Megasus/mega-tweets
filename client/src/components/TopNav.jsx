@@ -1,22 +1,23 @@
 import { FaBell, FaBookOpen, FaComments, FaFeatherAlt, FaSignOutAlt, FaUser, FaUsers } from "react-icons/fa";
 
-export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, onLogout }) {
+export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, onLogout, badgeCounts = {} }) {
   const tabMeta = {
-    feed: { label: "Feed", icon: <FaBookOpen /> },
+    feed: { label: "Tweets", icon: <FaBookOpen /> },
     groups: { label: "Groups", icon: <FaUsers /> },
     dm: { label: "Direct", icon: <FaComments /> },
-    notifications: { label: "Alerts", icon: <FaBell /> },
+    notifications: { label: "Notifications", icon: <FaBell /> },
     profile: { label: "Profile", icon: <FaUser /> },
   };
 
   return (
     <nav className="top-nav">
-      <div className="brand"><FaFeatherAlt /><span>Mega Novels</span></div>
+      <div className="brand"><FaFeatherAlt /><span>Mega Tweets</span></div>
       <div className="tab-row">
         {tabs.map((t) => (
           <button type="button" key={t} className={`tab-btn ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
             {tabMeta[t]?.icon}
             <span>{tabMeta[t]?.label || t}</span>
+            {Number(badgeCounts[t] || 0) > 0 && <em className="tab-badge">{badgeCounts[t]}</em>}
           </button>
         ))}
       </div>

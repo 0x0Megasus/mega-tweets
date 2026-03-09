@@ -29,6 +29,7 @@ export const api = {
   notifications: (token) => request("/api/notifications", token),
   markNotificationRead: (token, notificationId) =>
     request("/api/notifications/read", token, { method: "POST", body: JSON.stringify({ notificationId }) }),
+  clearNotifications: (token) => request("/api/notifications/clear", token, { method: "POST" }),
   novels: (token) => request("/api/novels", token),
   createNovel: (token, payload) => request("/api/novels", token, { method: "POST", body: JSON.stringify(payload) }),
   updateNovel: (token, novelId, payload) => request(`/api/novels/${novelId}`, token, { method: "PUT", body: JSON.stringify(payload) }),
