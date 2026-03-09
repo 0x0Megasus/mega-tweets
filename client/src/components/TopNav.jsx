@@ -1,8 +1,8 @@
-import { FaBell, FaBookOpen, FaComments, FaFeatherAlt, FaSignOutAlt, FaUser, FaUsers } from "react-icons/fa";
+import { FaBell, FaComments, FaFeatherAlt, FaHashtag, FaSignOutAlt, FaUser, FaUsers } from "react-icons/fa";
 
 export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, onLogout, badgeCounts = {} }) {
   const tabMeta = {
-    feed: { label: "Tweets", icon: <FaBookOpen /> },
+    feed: { label: "Tweets", icon: <FaHashtag /> },
     groups: { label: "Groups", icon: <FaUsers /> },
     dm: { label: "Direct", icon: <FaComments /> },
     notifications: { label: "Notifications", icon: <FaBell /> },

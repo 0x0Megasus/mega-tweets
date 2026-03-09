@@ -8,6 +8,7 @@ import {
   FaImage,
   FaMicrophone,
   FaPaperPlane,
+  FaPlus,
   FaReply,
   FaStop,
   FaUsers,
@@ -88,6 +89,7 @@ export default function GroupsView(props) {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState("");
+  const [showMediaOptions, setShowMediaOptions] = useState(false);
   const messageRefs = useRef({});
   const memberByUid = Object.fromEntries((groupMembers || []).map((member) => [member.uid, member]));
   const lastMessageIdRef = useRef("");
@@ -263,6 +265,10 @@ export default function GroupsView(props) {
     const timer = setTimeout(() => chatInputRef.current?.focus(), 0);
     return () => clearTimeout(timer);
   }, [selectedGroupData?.id, selectedGroupData?.joined, groupReplyTo, isMobile, mobileGroupPage]);
+
+  useEffect(() => {
+    if (!isMobile) setShowMediaOptions(false);
+  }, [isMobile, selectedGroup]);
 
   return (
     <section className="groups-layout">
@@ -535,33 +541,97 @@ export default function GroupsView(props) {
                       }
                     }, "Video")}
                   />
-                  <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
-                    <FaImage />
-                  </button>
-                  <button
-                    type="button"
-                    className={`icon-btn ${isRecording ? "recording" : ""}`}
-                    onClick={isRecording ? stopRecording : startRecording}
-                    title={isRecording ? "Stop recording" : "Record voice message"}
-                  >
-                    {isRecording ? <FaStop /> : <FaMicrophone />}
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    onClick={() => audioInputRef.current?.click()}
-                    title="Upload audio file"
-                  >
-                    <FaFileAudio />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    onClick={() => videoInputRef.current?.click()}
-                    title="Upload video"
-                  >
-                    <FaVideo />
-                  </button>
+                  {isMobile ? (
+                    <div className="mobile-media-wrap">
+                      <button
+                        type="button"
+                        className={`icon-btn mobile-options-btn ${showMediaOptions ? "open" : ""}`}
+                        onClick={() => setShowMediaOptions((prev) => !prev)}
+                        title="More options"
+                      >
+                        <FaPlus />
+                      </button>
+                      {showMediaOptions && (
+                        <div className="mobile-media-menu">
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => {
+                              imageInputRef.current?.click();
+                              setShowMediaOptions(false);
+                            }}
+                            title="Send image"
+                          >
+                            <FaImage />
+                          </button>
+                          <button
+                            type="button"
+                            className={`icon-btn ${isRecording ? "recording" : ""}`}
+                            onClick={() => {
+                              if (isRecording) stopRecording();
+                              else startRecording();
+                              setShowMediaOptions(false);
+                            }}
+                            title={isRecording ? "Stop recording" : "Record voice message"}
+                          >
+                            {isRecording ? <FaStop /> : <FaMicrophone />}
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => {
+                              audioInputRef.current?.click();
+                              setShowMediaOptions(false);
+                            }}
+                            title="Upload audio file"
+                          >
+                            <FaFileAudio />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
+                            onClick={() => {
+                              videoInputRef.current?.click();
+                              setShowMediaOptions(false);
+                            }}
+                            title="Upload video"
+                          >
+                            <FaVideo />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
+                        <FaImage />
+                      </button>
+                      <button
+                        type="button"
+                        className={`icon-btn ${isRecording ? "recording" : ""}`}
+                        onClick={isRecording ? stopRecording : startRecording}
+                        title={isRecording ? "Stop recording" : "Record voice message"}
+                      >
+                        {isRecording ? <FaStop /> : <FaMicrophone />}
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => audioInputRef.current?.click()}
+                        title="Upload audio file"
+                      >
+                        <FaFileAudio />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        onClick={() => videoInputRef.current?.click()}
+                        title="Upload video"
+                      >
+                        <FaVideo />
+                      </button>
+                    </>
+                  )}
                   <button type="submit" className="send-icon-btn" disabled={groupSending}>
                     {groupSending ? <span className="btn-spinner" /> : <FaPaperPlane />}
                   </button>

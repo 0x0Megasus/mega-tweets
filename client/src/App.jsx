@@ -48,7 +48,7 @@ function App() {
   const [seenPostIds, setSeenPostIds] = useState({});
   const [setupNickname, setSetupNickname] = useState("");
   const [setupBio, setSetupBio] = useState("");
-  const [profileDraft, setProfileDraft] = useState({ nickname: "", bio: "" });
+  const [profileDraft, setProfileDraft] = useState({ nickname: "", bio: "", photoURL: "" });
 
   const [tweets, setTweets] = useState([]);
   const [commentCache, setCommentCache] = useState({});
@@ -328,7 +328,7 @@ function App() {
       try {
         const [me, n, nv, g, u] = await withLoad(() => Promise.all([api.me(token), api.notifications(token), api.tweets(token), api.groups(token), api.users(token)]));
         setProfile(me); setNotifications(n); setTweets(nv); setGroups(g); setUsers(u);
-        setProfileDraft({ nickname: me.nickname || "", bio: me.bio || "" });
+        setProfileDraft({ nickname: me.nickname || "", bio: me.bio || "", photoURL: me.photoURL || "" });
         setSetupNickname(me.nickname || ""); setSetupBio(me.bio || "");
         if (g[0]) setSelectedGroup(g[0].id);
       } catch (e) { setError(e.message); }
@@ -564,7 +564,7 @@ function App() {
   const saveSetup = async () => {
     try {
       const me = await withLoad(() => api.saveProfile(token, { fullName: setupNickname, nickname: setupNickname, bio: setupBio }));
-      setProfile(me); setProfileDraft({ nickname: me.nickname || "", bio: me.bio || "" });
+      setProfile(me); setProfileDraft({ nickname: me.nickname || "", bio: me.bio || "", photoURL: me.photoURL || "" });
       await refreshBase();
     } catch (e) { setError(e.message); }
   };
@@ -572,7 +572,12 @@ function App() {
   const saveProfile = async (e) => {
     e.preventDefault();
     try {
-      const me = await withLoad(() => api.saveProfile(token, { fullName: profileDraft.nickname, nickname: profileDraft.nickname, bio: profileDraft.bio }));
+      const me = await withLoad(() => api.saveProfile(token, {
+        fullName: profileDraft.nickname,
+        nickname: profileDraft.nickname,
+        bio: profileDraft.bio,
+        photoURL: profileDraft.photoURL,
+      }));
       setProfile(me); await refreshBase();
     } catch (x) { setError(x.message); }
   };

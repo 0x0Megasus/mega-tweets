@@ -7,13 +7,28 @@ export default function ProfileView({
   soundSettings,
   setSoundSettings,
 }) {
+  const onPickAvatar = (file) => {
+    if (!file) return;
+    if (file.size > 1_000_000) {
+      window.alert("Profile photo is too large. Max size is 1MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const data = typeof reader.result === "string" ? reader.result : "";
+      if (!data) return;
+      setProfileDraft((p) => ({ ...p, photoURL: data }));
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <section className="grid-two">
       <article className="panel sticky">
         <h3>My Profile</h3>
         <div className="profile-box">
           <img
-            src={profile.photoURL || firebaseUser.photoURL || ""}
+            src={profileDraft.photoURL || profile.photoURL || firebaseUser.photoURL || ""}
             alt={profile.nickname}
             className="avatar-lg"
           />
@@ -26,6 +41,20 @@ export default function ProfileView({
       <article className="panel">
         <h3>Edit</h3>
         <form className="stack-form profile-edit-form" onSubmit={saveProfile}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) => onPickAvatar(e.target.files?.[0])}
+          />
+          {profileDraft.photoURL && (
+            <button
+              type="button"
+              className="secondary-btn"
+              onClick={() => setProfileDraft((p) => ({ ...p, photoURL: profile.photoURL || firebaseUser.photoURL || "" }))}
+            >
+              Reset selected photo
+            </button>
+          )}
           <input
             value={profileDraft.nickname}
             onChange={(e) => setProfileDraft((p) => ({ ...p, nickname: e.target.value }))}

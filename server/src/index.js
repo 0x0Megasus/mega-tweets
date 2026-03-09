@@ -159,6 +159,7 @@ app.post("/api/profiles/me", asyncHandler(async (req, res) => {
   const fullName = sanitizeText(req.body?.fullName, 60);
   const nickname = sanitizeText(req.body?.nickname, 40);
   const bio = sanitizeText(req.body?.bio, 220);
+  const uploadedPhoto = sanitizeDataUrl(req.body?.photoURL, "data:image/", 1_500_000);
 
   if (fullName.length < 2) {
     return res.status(400).json({ error: "Name must be at least 2 characters" });
@@ -167,17 +168,18 @@ app.post("/api/profiles/me", asyncHandler(async (req, res) => {
     return res.status(400).json({ error: "Nickname must be at least 2 characters" });
   }
 
+  const existing = await getProfile(req.user.uid);
+  const nextPhoto = uploadedPhoto || existing?.photoURL || req.user.picture || "";
+
   const profile = {
     uid: req.user.uid,
     email: req.user.email || "",
     fullName,
     nickname,
     bio,
-    photoURL: req.user.picture || "",
+    photoURL: nextPhoto,
     updatedAt: nowIso(),
   };
-
-  const existing = await getProfile(req.user.uid);
 
   if (!existing) {
     profile.createdAt = nowIso();
