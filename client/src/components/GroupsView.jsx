@@ -61,6 +61,7 @@ export default function GroupsView(props) {
     removeMember,
     groupMessagesLoading,
     focusedGroupMessageId,
+    onOpenProfile,
   } = props;
 
   const listRef = useRef(null);
@@ -334,23 +335,31 @@ export default function GroupsView(props) {
                             if (el) messageRefs.current[m.id] = el;
                           }}
                         >
-                          <img
-                            src={pickAvatar(
-                              m.senderPhotoURL,
-                              m.senderPhotoUrl,
-                              m.photoURL,
-                              m.photoUrl,
-                              memberByUid[m.senderUid]?.photoURL,
-                              memberByUid[m.senderUid]?.photoUrl,
-                            )}
-                            alt={m.senderNickname}
-                            className="avatar-msg"
-                            onError={handleAvatarError}
-                          />
+                          <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(m.senderUid)}>
+                            <img
+                              src={pickAvatar(
+                                m.senderPhotoURL,
+                                m.senderPhotoUrl,
+                                m.photoURL,
+                                m.photoUrl,
+                                memberByUid[m.senderUid]?.photoURL,
+                                memberByUid[m.senderUid]?.photoUrl,
+                              )}
+                              alt={m.senderNickname}
+                              className="avatar-msg"
+                              onError={handleAvatarError}
+                            />
+                          </button>
                           <div className={`msg-bubble ${m.imageData || m.audioData ? "has-media" : ""}`}>
-                            <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
-                              {m.senderNickname}
-                            </strong>
+                            <button
+                              type="button"
+                              className="profile-link-btn msg-user-link"
+                              onClick={() => onOpenProfile?.(m.senderUid)}
+                            >
+                              <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
+                                {m.senderNickname}
+                              </strong>
+                            </button>
                             {m.replyTo && (
                               <p className="reply-preview">
                                 @{m.replyTo.senderNickname}: {m.replyTo.text}
@@ -519,14 +528,18 @@ export default function GroupsView(props) {
               {sortedMembers.map((m) => (
                 <div key={m.uid} className="admin-member-row">
                   <div className="member-main">
-                    <img
-                      src={pickAvatar(m.photoURL, m.photoUrl)}
-                      alt={m.nickname}
-                      className="avatar-member"
-                      onError={handleAvatarError}
-                    />
+                    <button type="button" className="profile-link-btn member-profile-link" onClick={() => onOpenProfile?.(m.uid)}>
+                      <img
+                        src={pickAvatar(m.photoURL, m.photoUrl)}
+                        alt={m.nickname}
+                        className="avatar-member"
+                        onError={handleAvatarError}
+                      />
+                      <div>
+                        <strong>{m.nickname}</strong>
+                      </div>
+                    </button>
                     <div>
-                      <strong>{m.nickname}</strong>
                       {m.isAdmin && (
                         <span className="admin-badge">
                           <FaCrown /> Admin

@@ -247,9 +247,11 @@ app.get("/api/tweets", asyncHandler(async (_, res) => {
 
 app.post("/api/tweets", asyncHandler(async (req, res) => {
   const content = sanitizeText(req.body?.content, 6000);
+  const imageData = sanitizeDataUrl(req.body?.imageData, "data:image/", 1_500_000);
+  const audioData = sanitizeDataUrl(req.body?.audioData, "data:audio/", 3_000_000);
 
-  if (content.length < 2) {
-    return res.status(400).json({ error: "Content must be at least 2 characters" });
+  if (content.length < 2 && !imageData && !audioData) {
+    return res.status(400).json({ error: "Tweet text or attachment is required" });
   }
 
   const profile = await getProfile(req.user.uid);
@@ -264,6 +266,8 @@ app.post("/api/tweets", asyncHandler(async (req, res) => {
     authorNickname: profile.nickname,
     authorPhotoURL: profile.photoURL || req.user.picture || "",
     content,
+    imageData,
+    audioData,
     createdAt: nowIso(),
   };
 

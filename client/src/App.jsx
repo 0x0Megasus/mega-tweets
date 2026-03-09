@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { browserLocalPersistence, onAuthStateChanged, setPersistence, signInWithPopup, signOut } from "firebase/auth";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
@@ -12,6 +12,7 @@ import GroupsView from "./components/GroupsView";
 import DmView from "./components/DmView";
 import NotificationsView from "./components/NotificationsView";
 import ProfileView from "./components/ProfileView";
+import UserProfileView from "./components/UserProfileView";
 import ConfirmLeaveModal from "./components/ConfirmLeaveModal";
 import PublishTweetModal from "./components/PublishTweetModal";
 import NotFoundPage from "./components/NotFoundPage";
@@ -52,6 +53,8 @@ function App() {
   const [tweets, setTweets] = useState([]);
   const [commentCache, setCommentCache] = useState({});
   const [postContent, setPostContent] = useState("");
+  const [postImageData, setPostImageData] = useState("");
+  const [postAudioData, setPostAudioData] = useState("");
   const [editingId, setEditingId] = useState("");
   const [editContent, setEditContent] = useState("");
 
@@ -85,10 +88,29 @@ function App() {
   const [focusedDmMessageId, setFocusedDmMessageId] = useState("");
   const [likeLoadingId, setLikeLoadingId] = useState("");
   const [commentLoadingId, setCommentLoadingId] = useState("");
+  const [soundSettings, setSoundSettings] = useState(() => {
+    try {
+      const raw = localStorage.getItem("mega_tweets_sound_settings");
+      if (!raw) return { notifications: true, dm: true, groups: true };
+      const parsed = JSON.parse(raw);
+      return {
+        notifications: parsed?.notifications !== false,
+        dm: parsed?.dm !== false,
+        groups: parsed?.groups !== false,
+      };
+    } catch {
+      return { notifications: true, dm: true, groups: true };
+    }
+  });
+  const audioContextRef = useRef(null);
+  const notificationsInitRef = useRef(false);
+  const previousUnreadRef = useRef(0);
+  const dmBaselineRef = useRef({ uid: "", lastId: "" });
+  const groupBaselineRef = useRef({ groupId: "", lastId: "" });
 
   const currentTab = useMemo(() => {
     const firstSegment = location.pathname.split("/")[1];
-    return TABS.includes(firstSegment) ? firstSegment : "feed";
+    return TABS.includes(firstSegment) ? firstSegment : "";
   }, [location.pathname]);
 
   const busy = pendingCount > 0;
@@ -138,6 +160,10 @@ function App() {
     }
   }, [profile?.uid]);
 
+  useEffect(() => {
+    localStorage.setItem("mega_tweets_sound_settings", JSON.stringify(soundSettings));
+  }, [soundSettings]);
+
   const markPostsSeen = (postIds) => {
     if (!profile?.uid || !postIds.length) return;
     const storageKey = `mega_tweets_seen_posts_${profile.uid}`;
@@ -155,10 +181,89 @@ function App() {
     });
   };
 
+  const playSound = useCallback((type) => {
+    if (typeof window === "undefined") return;
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    if (!audioContextRef.current) audioContextRef.current = new AudioCtx();
+    const ctx = audioContextRef.current;
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
+
+    const now = ctx.currentTime;
+    const pulse = (start, freq, duration, gain = 0.035) => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, start);
+      g.gain.setValueAtTime(0.0001, start);
+      g.gain.exponentialRampToValueAtTime(gain, start + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+      osc.connect(g).connect(ctx.destination);
+      osc.start(start);
+      osc.stop(start + duration + 0.02);
+    };
+
+    if (type === "notification") {
+      pulse(now, 920, 0.11, 0.03);
+      pulse(now + 0.12, 1160, 0.12, 0.03);
+    } else if (type === "dm") {
+      pulse(now, 760, 0.1, 0.03);
+      pulse(now + 0.1, 980, 0.1, 0.03);
+    } else if (type === "group") {
+      pulse(now, 620, 0.1, 0.03);
+      pulse(now + 0.12, 780, 0.1, 0.03);
+    }
+  }, []);
+
   useEffect(() => {
     if (currentTab !== "feed" || !tweets.length) return;
     markPostsSeen(tweets.map((n) => n.id));
   }, [currentTab, tweets]);
+
+  useEffect(() => {
+    const unread = notifications.filter((n) => !n.read).length;
+    if (!notificationsInitRef.current) {
+      notificationsInitRef.current = true;
+      previousUnreadRef.current = unread;
+      return;
+    }
+    if (unread > previousUnreadRef.current && soundSettings.notifications) {
+      playSound("notification");
+    }
+    previousUnreadRef.current = unread;
+  }, [notifications, soundSettings.notifications, playSound]);
+
+  useEffect(() => {
+    const latest = dmMessages[dmMessages.length - 1];
+    if (!dmTargetUid || !latest) {
+      dmBaselineRef.current = { uid: dmTargetUid || "", lastId: latest?.id || "" };
+      return;
+    }
+    if (dmBaselineRef.current.uid !== dmTargetUid) {
+      dmBaselineRef.current = { uid: dmTargetUid, lastId: latest.id };
+      return;
+    }
+    if (latest.id !== dmBaselineRef.current.lastId) {
+      if (latest.senderUid !== profile?.uid && soundSettings.dm) playSound("dm");
+      dmBaselineRef.current.lastId = latest.id;
+    }
+  }, [dmMessages, dmTargetUid, profile?.uid, soundSettings.dm, playSound]);
+
+  useEffect(() => {
+    const latest = groupMessages[groupMessages.length - 1];
+    if (!selectedGroup || !latest) {
+      groupBaselineRef.current = { groupId: selectedGroup || "", lastId: latest?.id || "" };
+      return;
+    }
+    if (groupBaselineRef.current.groupId !== selectedGroup) {
+      groupBaselineRef.current = { groupId: selectedGroup, lastId: latest.id };
+      return;
+    }
+    if (latest.id !== groupBaselineRef.current.lastId) {
+      if (latest.senderUid !== profile?.uid && soundSettings.groups) playSound("group");
+      groupBaselineRef.current.lastId = latest.id;
+    }
+  }, [groupMessages, selectedGroup, profile?.uid, soundSettings.groups, playSound]);
 
   useEffect(() => {
     if (!focusedPostId) return;
@@ -471,11 +576,17 @@ function App() {
   const postTweet = async (e) => {
     e.preventDefault();
     const content = postContent.trim();
-    if (content.length < 2) {
-      setError("Tweet content must be at least 2 characters");
+    if (content.length < 2 && !postImageData && !postAudioData) {
+      setError("Tweet content must be at least 2 characters or include media");
       return;
     }
-    try { await withLoad(() => api.createTweet(token, { content })); setPostContent(""); await refreshTweets(); }
+    try {
+      await withLoad(() => api.createTweet(token, { content, imageData: postImageData, audioData: postAudioData }));
+      setPostContent("");
+      setPostImageData("");
+      setPostAudioData("");
+      await refreshTweets();
+    }
     catch (x) { setError(x.message); }
   };
 
@@ -670,11 +781,12 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delTweet={delTweet} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} />} />
-        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} />} />
-        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} focusedDmMessageId={focusedDmMessageId} />} />
+        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delTweet={delTweet} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
+        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
+        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
         <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
-        <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} />} />
+        <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} />} />
+        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} startEdit={startEdit} delTweet={delTweet} commentCache={commentCache} sendComment={sendComment} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
         <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
@@ -683,6 +795,10 @@ function App() {
         onClose={() => setShowPublishModal(false)}
         postContent={postContent}
         setPostContent={setPostContent}
+        postImageData={postImageData}
+        setPostImageData={setPostImageData}
+        postAudioData={postAudioData}
+        setPostAudioData={setPostAudioData}
         postTweet={(e) => {
           postTweet(e);
           setShowPublishModal(false);

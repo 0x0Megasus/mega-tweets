@@ -60,6 +60,7 @@ export default function DmView({
   dmAudioData,
   setDmAudioData,
   focusedDmMessageId,
+  onOpenProfile,
 }) {
   const listRef = useRef(null);
   const chatInputRef = useRef(null);
@@ -269,23 +270,31 @@ export default function DmView({
                           if (el) messageRefs.current[m.id] = el;
                         }}
                       >
-                        <img
-                          src={pickAvatar(
-                            m.senderPhotoURL,
-                            m.senderPhotoUrl,
-                            m.photoURL,
-                            m.photoUrl,
-                            profileByUid[m.senderUid]?.photoURL,
-                            profileByUid[m.senderUid]?.photoUrl,
-                          )}
-                          alt={m.senderNickname}
-                          className="avatar-msg"
-                          onError={handleAvatarError}
-                        />
+                        <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(m.senderUid)}>
+                          <img
+                            src={pickAvatar(
+                              m.senderPhotoURL,
+                              m.senderPhotoUrl,
+                              m.photoURL,
+                              m.photoUrl,
+                              profileByUid[m.senderUid]?.photoURL,
+                              profileByUid[m.senderUid]?.photoUrl,
+                            )}
+                            alt={m.senderNickname}
+                            className="avatar-msg"
+                            onError={handleAvatarError}
+                          />
+                        </button>
                         <div className={`msg-bubble ${m.imageData || m.audioData ? "has-media" : ""}`}>
-                          <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
-                            {m.senderNickname}
-                          </strong>
+                          <button
+                            type="button"
+                            className="profile-link-btn msg-user-link"
+                            onClick={() => onOpenProfile?.(m.senderUid)}
+                          >
+                            <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
+                              {m.senderNickname}
+                            </strong>
+                          </button>
                           {m.replyTo && (
                             <p className="reply-preview">
                               @{m.replyTo.senderNickname}: {m.replyTo.text}

@@ -1,10 +1,16 @@
-import { FaUserCircle } from "react-icons/fa";
-
-export default function ProfileView({ profile, firebaseUser, profileDraft, setProfileDraft, saveProfile }) {
+export default function ProfileView({
+  profile,
+  firebaseUser,
+  profileDraft,
+  setProfileDraft,
+  saveProfile,
+  soundSettings,
+  setSoundSettings,
+}) {
   return (
     <section className="grid-two">
       <article className="panel sticky">
-        <h3><FaUserCircle /> Profile</h3>
+        <h3>My Profile</h3>
         <div className="profile-box">
           <img
             src={profile.photoURL || firebaseUser.photoURL || ""}
@@ -16,9 +22,10 @@ export default function ProfileView({ profile, firebaseUser, profileDraft, setPr
           <p>{profile.bio || "No bio"}</p>
         </div>
       </article>
+
       <article className="panel">
         <h3>Edit</h3>
-        <form className="stack-form" onSubmit={saveProfile}>
+        <form className="stack-form profile-edit-form" onSubmit={saveProfile}>
           <input
             value={profileDraft.nickname}
             onChange={(e) => setProfileDraft((p) => ({ ...p, nickname: e.target.value }))}
@@ -36,6 +43,33 @@ export default function ProfileView({ profile, firebaseUser, profileDraft, setPr
             Update
           </button>
         </form>
+        <div className="sound-settings-box">
+          <h4>Sound Settings</h4>
+          <label className="sound-toggle">
+            <input
+              type="checkbox"
+              checked={Boolean(soundSettings?.notifications)}
+              onChange={(e) => setSoundSettings((prev) => ({ ...prev, notifications: e.target.checked }))}
+            />
+            Notification sound
+          </label>
+          <label className="sound-toggle">
+            <input
+              type="checkbox"
+              checked={Boolean(soundSettings?.dm)}
+              onChange={(e) => setSoundSettings((prev) => ({ ...prev, dm: e.target.checked }))}
+            />
+            DM message sound
+          </label>
+          <label className="sound-toggle">
+            <input
+              type="checkbox"
+              checked={Boolean(soundSettings?.groups)}
+              onChange={(e) => setSoundSettings((prev) => ({ ...prev, groups: e.target.checked }))}
+            />
+            Group message sound
+          </label>
+        </div>
       </article>
     </section>
   );

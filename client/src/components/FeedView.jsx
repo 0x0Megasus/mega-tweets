@@ -1,5 +1,6 @@
-import { useEffect, useRef } from "react";
-import { FaComments, FaGlobe, FaHeart, FaPlus, FaTrash } from "react-icons/fa";
+import { useEffect, useRef, useState } from "react";
+import { FaComments, FaEllipsisH, FaGlobe, FaHeart, FaPlus } from "react-icons/fa";
+import ChatAudioPlayer from "./ChatAudioPlayer";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
@@ -15,10 +16,14 @@ export default function FeedView(props) {
   const {
     tweets, editingId, editContent, setEditContent,
     saveEdit, setEditingId, timeAgo, containsArabic, likeTweet, likeLoadingId, commentLoadingId, toggleComments, profile, startEdit, delTweet,
-    commentCache, sendComment, onOpenPublish, users, focusedPostId,
+    commentCache, sendComment, onOpenPublish, users, focusedPostId, onOpenProfile,
+    title = "Tweets",
+    showPublish = true,
+    emptyText = "No tweets yet. Be the first to post one!",
   } = props;
   const userByUid = Object.fromEntries((users || []).map((user) => [user.uid, user]));
   const postRefs = useRef({});
+  const [openMenuId, setOpenMenuId] = useState("");
 
   useEffect(() => {
     if (!focusedPostId) return;
@@ -27,19 +32,28 @@ export default function FeedView(props) {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
   }, [focusedPostId, tweets]);
 
+  useEffect(() => {
+    if (!openMenuId) return undefined;
+    const onDocClick = () => setOpenMenuId("");
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [openMenuId]);
+
   return (
     <section className="feed-layout-full">
       <article className="panel">
         <div className="feed-header">
-          <h3><FaGlobe /> Tweets</h3>
-          <button className="primary-btn publish-btn" onClick={onOpenPublish}>
-            <FaPlus /> New Tweet
-          </button>
+          <h3><FaGlobe /> {title}</h3>
+          {showPublish && (
+            <button className="primary-btn publish-btn" onClick={onOpenPublish}>
+              <FaPlus /> New Tweet
+            </button>
+          )}
         </div>
         <div className="cards">
           {tweets.length === 0 ? (
             <div className="empty-state">
-              <p>No tweets yet. Be the first to post one!</p>
+              <p>{emptyText}</p>
             </div>
           ) : (
             tweets.map((n) => (
@@ -58,7 +72,11 @@ export default function FeedView(props) {
                 ) : (
                   <>
                     <div className="meta-row">
-                      <div className="author-row">
+                      <button
+                        type="button"
+                        className="author-row author-btn"
+                        onClick={() => onOpenProfile?.(n.authorUid)}
+                      >
                         <img
                           src={pickAvatar(
                             n.authorPhotoURL,
@@ -76,9 +94,48 @@ export default function FeedView(props) {
                           <strong>{n.authorNickname}</strong>
                           <small> {timeAgo(n.createdAt)}</small>
                         </div>
-                      </div>
+                      </button>
+                      {n.authorUid === profile.uid && (
+                        <div className="owner-options" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="owner-options-btn"
+                            onClick={() => setOpenMenuId((prev) => (prev === n.id ? "" : n.id))}
+                            aria-label="Post options"
+                          >
+                            <FaEllipsisH />
+                          </button>
+                          {openMenuId === n.id && (
+                            <div className="owner-options-menu">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (!window.confirm("Edit this post?")) return;
+                                  startEdit(n);
+                                  setOpenMenuId("");
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                className="danger"
+                                onClick={() => {
+                                  if (!window.confirm("Delete this post permanently?")) return;
+                                  delTweet(n.id);
+                                  setOpenMenuId("");
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>
+                    {Boolean(n.content) && <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>}
+                    {n.imageData && <img src={n.imageData} alt="Tweet media" className="feed-media-image" />}
+                    {n.audioData && <ChatAudioPlayer src={n.audioData} className="feed-media-audio" />}
                     <div className="actions-row">
                       <button type="button" className="action-btn" onClick={() => likeTweet(n.id)} disabled={likeLoadingId === n.id}>
                         {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
@@ -86,12 +143,6 @@ export default function FeedView(props) {
                       <button type="button" className="action-btn" onClick={() => toggleComments(n.id)} disabled={commentLoadingId === n.id}>
                         {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
                       </button>
-                      {n.authorUid === profile.uid && (
-                        <>
-                          <button type="button" onClick={() => startEdit(n)}>Edit</button>
-                          <button type="button" onClick={() => delTweet(n.id)}><FaTrash /></button>
-                        </>
-                      )}
                     </div>
                     {commentCache[n.id] && (
                       <div className="comment-box fb-comments">

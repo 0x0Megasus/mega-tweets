@@ -106,6 +106,105 @@ h1, h2, h3, h4 { margin: 0; }
 .meta-row { justify-content: space-between; }
 .author-row small, .tweet-card small, .message-item small, .comment-item small { color: var(--muted); font-size: 12px; }
 .tweet-card p { margin: 0; line-height: 1.65; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }
+.author-btn {
+  width: auto;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  color: inherit;
+  text-align: left;
+}
+.author-btn:hover strong {
+  text-decoration: underline;
+}
+.profile-link-btn {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  color: inherit;
+  cursor: pointer;
+}
+.msg-user-link {
+  display: inline-flex;
+  align-items: center;
+}
+.msg-user-link:hover strong,
+.member-profile-link:hover strong {
+  text-decoration: underline;
+}
+.member-profile-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  text-align: left;
+}
+.owner-options {
+  position: relative;
+  margin-left: 8px;
+}
+.owner-options-btn {
+  width: 28px;
+  height: 28px;
+  border: 1px solid #4a4d55;
+  border-radius: 6px;
+  background: #2f3238;
+  color: #d1d5db;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.owner-options-btn:hover {
+  border-color: var(--accent);
+  color: #fff;
+}
+.owner-options-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 15;
+  min-width: 130px;
+  border: 1px solid #4a4d55;
+  border-radius: 8px;
+  background: #24262b;
+  box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+  display: grid;
+  gap: 3px;
+}
+.owner-options-menu button {
+  width: 100%;
+  height: 30px;
+  margin: 0;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: #2f3238;
+  color: #e5e7eb;
+  text-align: left;
+  padding: 0 10px;
+  cursor: pointer;
+}
+.owner-options-menu button:hover {
+  border-color: var(--accent);
+}
+.owner-options-menu button.danger {
+  color: #fca5a5;
+}
+.feed-media-image {
+  max-width: min(100%, 420px);
+  max-height: 360px;
+  margin-top: 8px;
+  border-radius: 8px;
+  border: 1px solid #4a4d55;
+  object-fit: cover;
+}
+.feed-media-audio {
+  margin-top: 8px;
+}
 .fb-comments { margin-top: 10px; padding-top: 10px; border-top: 1px solid #4a4d55; }
 .comment-form { margin-top: 10px; }
 
@@ -753,6 +852,14 @@ h1, h2, h3, h4 { margin: 0; }
   gap: 10px;
   margin-top: 12px;
 }
+.modal-media-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-media-row small {
+  color: var(--muted);
+}
 
 .modal-actions button {
   flex: 1;
@@ -804,6 +911,49 @@ h1, h2, h3, h4 { margin: 0; }
   grid-auto-rows: min-content;
   align-content: start;
   padding: 8px;
+}
+
+.profile-layout {
+  grid-template-columns: 250px 320px 1fr;
+}
+.profile-summary-panel {
+  margin-bottom: 8px;
+}
+.profile-users-panel .profile-user-list,
+.profile-posts-panel .cards {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.profile-users-panel .profile-user-list::-webkit-scrollbar,
+.profile-posts-panel .cards::-webkit-scrollbar {
+  display: none;
+}
+.profile-posts-panel .cards {
+  align-content: start;
+}
+.profile-edit-form {
+  margin-top: 12px;
+}
+.sound-settings-box {
+  margin-top: 14px;
+  border-top: 1px solid #4a4d55;
+  padding-top: 10px;
+}
+.sound-settings-box h4 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  color: #dbe2ea;
+}
+.sound-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0;
+  color: #cfd5dd;
+  font-size: 13px;
 }
 
 .feed-layout-full .cards::-webkit-scrollbar {
@@ -909,7 +1059,7 @@ h1, h2, h3, h4 { margin: 0; }
     min-width: 44px;
     width: 44px;
     height: 36px;
-    font-size: 11px;
+    font-size: 13px;
     padding: 0;
     gap: 0;
     flex: 0 0 44px;
@@ -1001,7 +1151,7 @@ h1, h2, h3, h4 { margin: 0; }
     min-width: 40px;
     height: 36px;
     padding: 0;
-    font-size: 11px;
+    font-size: 13px;
   }
   .dm-user-item {
     justify-content: flex-start;
@@ -1056,7 +1206,7 @@ h1, h2, h3, h4 { margin: 0; }
     width: 36px;
     min-width: 36px;
     height: 32px;
-    font-size: 10px;
+    font-size: 12px;
   }
   .icon-btn {
     width: 32px;
