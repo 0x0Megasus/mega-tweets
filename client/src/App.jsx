@@ -71,6 +71,7 @@ function App() {
   const [mobileGroupPage, setMobileGroupPage] = useState("list");
   const [showGroupMembers, setShowGroupMembers] = useState(false);
   const [groupMessagesLoading, setGroupMessagesLoading] = useState(false);
+  const [focusedGroupMessageId, setFocusedGroupMessageId] = useState("");
 
   const [dmTargetUid, setDmTargetUid] = useState("");
   const [dmMessages, setDmMessages] = useState([]);
@@ -81,6 +82,7 @@ function App() {
   const [dmAudioData, setDmAudioData] = useState("");
   const [mobileDmPage, setMobileDmPage] = useState("list");
   const [dmMessagesLoading, setDmMessagesLoading] = useState(false);
+  const [focusedDmMessageId, setFocusedDmMessageId] = useState("");
   const [likeLoadingId, setLikeLoadingId] = useState("");
   const [commentLoadingId, setCommentLoadingId] = useState("");
 
@@ -159,9 +161,21 @@ function App() {
 
   useEffect(() => {
     if (!focusedPostId) return;
-    const timeout = setTimeout(() => setFocusedPostId(""), 2200);
+    const timeout = setTimeout(() => setFocusedPostId(""), 1000);
     return () => clearTimeout(timeout);
   }, [focusedPostId]);
+
+  useEffect(() => {
+    if (!focusedGroupMessageId) return;
+    const timeout = setTimeout(() => setFocusedGroupMessageId(""), 1000);
+    return () => clearTimeout(timeout);
+  }, [focusedGroupMessageId]);
+
+  useEffect(() => {
+    if (!focusedDmMessageId) return;
+    const timeout = setTimeout(() => setFocusedDmMessageId(""), 1000);
+    return () => clearTimeout(timeout);
+  }, [focusedDmMessageId]);
 
   // withLoad: runs an async task and optionally increments global pending counter
   // pass options { global: false } to avoid triggering the global fullscreen loader
@@ -552,6 +566,7 @@ function App() {
       }
       setSelectedGroup(notification.groupId);
       setMobileGroupPage("chat");
+      setFocusedGroupMessageId(notification.messageId || "");
       navigate("/groups");
       if (!group.joined) setError("You are no longer a member of this group.");
       return;
@@ -565,6 +580,7 @@ function App() {
       }
       setDmTargetUid(notification.actorUid);
       setMobileDmPage("chat");
+      setFocusedDmMessageId(notification.messageId || "");
       navigate("/dm");
       return;
     }
@@ -582,8 +598,8 @@ function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
         <Route path="/feed" element={<FeedView novels={novels} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeNovel={likeNovel} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} toggleComments={toggleComments} profile={profile} startEdit={startEdit} delNovel={delNovel} commentCache={commentCache} sendComment={sendComment} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} />} />
-        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} />} />
-        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} />} />
+        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} />} />
+        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} focusedDmMessageId={focusedDmMessageId} />} />
         <Route path="/notifications" element={<NotificationsView notifications={notifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} />} />
         <Route path="*" element={<NotFoundPage />} />

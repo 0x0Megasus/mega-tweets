@@ -13,6 +13,7 @@ import {
   FaUsers,
   FaTimes,
 } from "react-icons/fa";
+import ChatAudioPlayer from "./ChatAudioPlayer";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
@@ -59,6 +60,7 @@ export default function GroupsView(props) {
     promote,
     removeMember,
     groupMessagesLoading,
+    focusedGroupMessageId,
   } = props;
 
   const listRef = useRef(null);
@@ -69,6 +71,8 @@ export default function GroupsView(props) {
   const audioChunksRef = useRef([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [previewImage, setPreviewImage] = useState("");
+  const messageRefs = useRef({});
   const memberByUid = Object.fromEntries((groupMembers || []).map((member) => [member.uid, member]));
   const lastMessageIdRef = useRef("");
   const lastGroupRef = useRef("");
@@ -223,6 +227,13 @@ export default function GroupsView(props) {
     requestAnimationFrame(() => setShowScrollDown(!isNearBottom()));
   }, [groupMessages, selectedGroup, isNearBottom]);
 
+  useEffect(() => {
+    if (!focusedGroupMessageId) return;
+    const target = messageRefs.current[focusedGroupMessageId];
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusedGroupMessageId, groupMessages]);
+
   return (
     <section className="groups-layout">
       {(!isMobile || mobileGroupPage === "list") && (
@@ -310,7 +321,10 @@ export default function GroupsView(props) {
                           key={m.id}
                           className={`message-item ${m.senderUid === profile.uid ? "mine" : ""} ${
                             isReplyToMe(m) ? "is-reply-to-me" : ""
-                          }`}
+                          } ${focusedGroupMessageId === m.id ? "focus-message" : ""}`}
+                          ref={(el) => {
+                            if (el) messageRefs.current[m.id] = el;
+                          }}
                         >
                           <img
                             src={pickAvatar(
@@ -325,7 +339,7 @@ export default function GroupsView(props) {
                             className="avatar-msg"
                             onError={handleAvatarError}
                           />
-                          <div className="msg-bubble">
+                          <div className={`msg-bubble ${m.imageData || m.audioData ? "has-media" : ""}`}>
                             <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
                               {m.senderNickname}
                             </strong>
@@ -335,11 +349,25 @@ export default function GroupsView(props) {
                               </p>
                             )}
                             <p>{m.text}</p>
-                            {m.imageData && <img src={m.imageData} alt="Attachment" className="chat-media-image" />}
+                            {m.imageData && (
+                              <>
+                                <img
+                                  src={m.imageData}
+                                  alt="Attachment"
+                                  className="chat-media-image msg-media"
+                                  onClick={() => setPreviewImage(m.imageData)}
+                                />
+                                <div className="media-actions">
+                                  <a href={m.imageData} download={`image-${m.id || "group"}.png`} className="media-download">Download</a>
+                                  <button type="button" className="media-open" onClick={() => setPreviewImage(m.imageData)}>Open</button>
+                                </div>
+                              </>
+                            )}
                             {m.audioData && (
-                              <audio controls className="chat-media-audio">
-                                <source src={m.audioData} />
-                              </audio>
+                              <div className="audio-wrap msg-media">
+                                <ChatAudioPlayer src={m.audioData} />
+                                <a href={m.audioData} download={`voice-${m.id || "group"}.webm`} className="media-download">Download</a>
+                              </div>
                             )}
                             <small className="msg-time">{timeAgo(m.createdAt)}</small>
                             {m.senderUid !== profile.uid && (
@@ -383,9 +411,7 @@ export default function GroupsView(props) {
                   <div className="attachment-preview-row">
                     {groupImageData && <img src={groupImageData} alt="Selected attachment" className="chat-media-image preview" />}
                     {groupAudioData && (
-                      <audio controls className="chat-media-audio">
-                        <source src={groupAudioData} />
-                      </audio>
+                      <ChatAudioPlayer src={groupAudioData} className="is-preview" />
                     )}
                     <button
                       type="button"
@@ -454,6 +480,16 @@ export default function GroupsView(props) {
                     <button type="button" onClick={stopRecording} className="stop-recording-btn">
                       <FaStop /> Stop
                     </button>
+                  </div>
+                )}
+                {previewImage && (
+                  <div className="image-lightbox" onClick={() => setPreviewImage("")} role="presentation">
+                    <div className="image-lightbox-inner" onClick={(e) => e.stopPropagation()}>
+                      <button type="button" className="lightbox-close" onClick={() => setPreviewImage("")}>
+                        <FaTimes />
+                      </button>
+                      <img src={previewImage} alt="Preview" />
+                    </div>
                   </div>
                 )}
               </>

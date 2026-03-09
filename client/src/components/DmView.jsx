@@ -11,6 +11,7 @@ import {
   FaUserCircle,
   FaTimes,
 } from "react-icons/fa";
+import ChatAudioPlayer from "./ChatAudioPlayer";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
@@ -58,6 +59,7 @@ export default function DmView({
   setDmImageData,
   dmAudioData,
   setDmAudioData,
+  focusedDmMessageId,
 }) {
   const listRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -67,6 +69,8 @@ export default function DmView({
   const audioChunksRef = useRef([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [previewImage, setPreviewImage] = useState("");
+  const messageRefs = useRef({});
   const profileByUid = Object.fromEntries(
     [profile, ...others].filter(Boolean).map((user) => [user.uid, user]),
   );
@@ -125,6 +129,13 @@ export default function DmView({
     lastMessageIdRef.current = latestMessageId;
     requestAnimationFrame(() => setShowScrollDown(!isNearBottom()));
   }, [dmMessages, dmTargetUid, isNearBottom]);
+
+  useEffect(() => {
+    if (!focusedDmMessageId) return;
+    const target = messageRefs.current[focusedDmMessageId];
+    if (!target) return;
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [focusedDmMessageId, dmMessages]);
 
   const isReplyToMe = (m) => m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid;
   const toDataUrl = (file, maxBytes, onDone) => {
@@ -245,7 +256,10 @@ export default function DmView({
                         key={m.id}
                         className={`message-item ${m.senderUid === profile.uid ? "mine" : ""} ${
                           isReplyToMe(m) ? "is-reply-to-me" : ""
-                        }`}
+                        } ${focusedDmMessageId === m.id ? "focus-message" : ""}`}
+                        ref={(el) => {
+                          if (el) messageRefs.current[m.id] = el;
+                        }}
                       >
                         <img
                           src={pickAvatar(
@@ -260,7 +274,7 @@ export default function DmView({
                           className="avatar-msg"
                           onError={handleAvatarError}
                         />
-                        <div className="msg-bubble">
+                        <div className={`msg-bubble ${m.imageData || m.audioData ? "has-media" : ""}`}>
                           <strong style={{ color: usernameColor(m.senderUid, m.senderNickname) }}>
                             {m.senderNickname}
                           </strong>
@@ -270,11 +284,25 @@ export default function DmView({
                             </p>
                           )}
                           <p>{m.text}</p>
-                          {m.imageData && <img src={m.imageData} alt="Attachment" className="chat-media-image" />}
+                          {m.imageData && (
+                            <>
+                              <img
+                                src={m.imageData}
+                                alt="Attachment"
+                                className="chat-media-image msg-media"
+                                onClick={() => setPreviewImage(m.imageData)}
+                              />
+                              <div className="media-actions">
+                                <a href={m.imageData} download={`image-${m.id || "dm"}.png`} className="media-download">Download</a>
+                                <button type="button" className="media-open" onClick={() => setPreviewImage(m.imageData)}>Open</button>
+                              </div>
+                            </>
+                          )}
                           {m.audioData && (
-                            <audio controls className="chat-media-audio">
-                              <source src={m.audioData} />
-                            </audio>
+                            <div className="audio-wrap msg-media">
+                              <ChatAudioPlayer src={m.audioData} />
+                              <a href={m.audioData} download={`voice-${m.id || "dm"}.webm`} className="media-download">Download</a>
+                            </div>
                           )}
                           <small className="msg-time">{timeAgo(m.createdAt)}</small>
                           {m.senderUid !== profile.uid && (
@@ -318,9 +346,7 @@ export default function DmView({
                 <div className="attachment-preview-row">
                   {dmImageData && <img src={dmImageData} alt="Selected attachment" className="chat-media-image preview" />}
                   {dmAudioData && (
-                    <audio controls className="chat-media-audio">
-                      <source src={dmAudioData} />
-                    </audio>
+                    <ChatAudioPlayer src={dmAudioData} className="is-preview" />
                   )}
                   <button
                     type="button"
@@ -389,6 +415,16 @@ export default function DmView({
                   <button type="button" onClick={stopRecording} className="stop-recording-btn">
                     <FaStop /> Stop
                   </button>
+                </div>
+              )}
+              {previewImage && (
+                <div className="image-lightbox" onClick={() => setPreviewImage("")} role="presentation">
+                  <div className="image-lightbox-inner" onClick={(e) => e.stopPropagation()}>
+                    <button type="button" className="lightbox-close" onClick={() => setPreviewImage("")}>
+                      <FaTimes />
+                    </button>
+                    <img src={previewImage} alt="Preview" />
+                  </div>
                 </div>
               )}
             </>
