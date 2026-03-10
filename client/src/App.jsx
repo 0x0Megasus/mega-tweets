@@ -1,5 +1,15 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { browserLocalPersistence, onAuthStateChanged, setPersistence, signInWithPopup, signOut } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  browserLocalPersistence,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithCredential,
+  signInWithPopup,
+  signOut,
+} from "firebase/auth";
+import { Capacitor } from "@capacitor/core";
+import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
 import { api } from "./api";
@@ -592,13 +602,31 @@ function App() {
     setLoginLoading(true); setError("");
     try {
       await setPersistence(auth, browserLocalPersistence);
-      await withLoad(() => signInWithPopup(auth, googleProvider));
+      if (Capacitor.isNativePlatform() && Capacitor.isPluginAvailable("FirebaseAuthentication")) {
+        await withLoad(async () => {
+          const result = await FirebaseAuthentication.signInWithGoogle({ useCredentialManager: false });
+          const idToken = result?.credential?.idToken
+            || result?.credential?.accessToken
+            || result?.idToken
+            || "";
+          if (!idToken) throw new Error("Google login failed: missing token");
+          const credential = GoogleAuthProvider.credential(idToken);
+          await signInWithCredential(auth, credential);
+        });
+      } else {
+        await withLoad(() => signInWithPopup(auth, googleProvider));
+      }
     }
     catch (e) { setError(e.message); }
     finally { setLoginLoading(false); }
   };
 
-  const logout = async () => withLoad(() => signOut(auth));
+  const logout = async () => withLoad(async () => {
+    if (Capacitor.isNativePlatform()) {
+      try { await FirebaseAuthentication.signOut(); } catch {}
+    }
+    await signOut(auth);
+  });
 
   const saveSetup = async () => {
     try {
