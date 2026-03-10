@@ -383,7 +383,21 @@ function App() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setFirebaseUser(u); setError("");
       if (!u) { setToken(""); setProfile(null); setAuthLoading(false); setBootLoading(false); return; }
-      setToken(await u.getIdToken()); setAuthLoading(false);
+      try {
+        // Force token refresh to avoid stale cached tokens
+        const freshToken = await u.getIdToken(true);
+        setToken(freshToken);
+      } catch (e) {
+        console.warn("getIdToken(true) failed, falling back to cached token:", e?.code || e?.message);
+        try {
+          const cachedToken = await u.getIdToken(false);
+          setToken(cachedToken);
+        } catch (e2) {
+          console.error("Failed to get any ID token:", e2?.code || e2?.message);
+          setError("Authentication failed. Please sign out and sign in again.");
+        }
+      }
+      setAuthLoading(false);
     });
     return () => unsub();
   }, []);
@@ -410,6 +424,14 @@ function App() {
         setSetupInterests(hydratedMe.interests || []);
         if (g[0]) setSelectedGroup(g[0].id);
       } catch (e) {
+        // If 401, try refreshing the token once and retry boot
+        if (e?.status === 401 && auth.currentUser) {
+          try {
+            const freshToken = await auth.currentUser.getIdToken(true);
+            setToken(freshToken);
+            return; // token update will re-trigger this effect
+          } catch { /* fall through to error handling below */ }
+        }
         console.error("Boot failed", {
           message: e?.message,
           url: e?.url,

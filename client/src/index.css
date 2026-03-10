@@ -20,13 +20,13 @@ body,
 #root input:hover,
 #root textarea:hover,
 #root select:hover {
-  border-color: hsl(39, 100%, 40%);
+  border-color: #7289da;
 }
 
 #root input:focus,
 #root textarea:focus,
 #root select:focus {
-  border-color: orange;
+  border-color: #7289da;
 }
 
 @media (max-width: 500px) {

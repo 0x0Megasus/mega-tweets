@@ -209,11 +209,19 @@ const authRequired = asyncHandler(async (req, res, next) => {
       return res.status(401).json({ error: "Missing auth token" });
     }
 
+    // Debug: log token length and first 20 chars to diagnose format issues
+    console.log(`[auth] token length=${token.length}, preview="${token.slice(0, 20)}..."`);
+
     const decoded = await auth.verifyIdToken(token);
     req.user = decoded;
+
+    // Remove debug log after confirming auth works
+    // console.log("[auth] verified uid:", decoded.uid);
+
     return next();
-  } catch {
-    return res.status(401).json({ error: "Invalid auth token" });
+  } catch (err) {
+    console.error("[auth] verifyIdToken failed:", err?.code || err?.message);
+    return res.status(401).json({ error: "Invalid auth token", code: err?.code });
   }
 });
 
