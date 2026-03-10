@@ -75,7 +75,24 @@ function createInviteCode(length = 10) {
 }
 
 function buildBaseUrl(req) {
-  return process.env.CORS_ORIGIN || `${req.protocol}://${req.get("host")}`;
+  // Prefer an explicit public base URL. If not set, use the first origin
+  // from CORS_ORIGIN (comma-separated list). Fall back to request host.
+  const envBase = (process.env.PUBLIC_BASE_URL || process.env.CORS_ORIGIN || "").trim();
+  if (envBase) {
+    const first = envBase.split(",").map((s) => s.trim()).find(Boolean);
+    if (first) {
+      try {
+        // validate URL-like value
+        // allow protocol-relative or host-only values by falling back to req host
+        const parsed = new URL(first);
+        return parsed.origin || first;
+      } catch (err) {
+        // not a full URL, if it looks like a host (no spaces, contains .) return it
+        if (/^[\w.-]+(:\d+)?$/.test(first)) return `${req.protocol}://${first}`;
+      }
+    }
+  }
+  return `${req.protocol}://${req.get("host")}`;
 }
 
 async function getProfile(uid) {
