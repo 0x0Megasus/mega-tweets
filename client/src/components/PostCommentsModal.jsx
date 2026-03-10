@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FaComments, FaHeart, FaPaperPlane, FaReply, FaTimes } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
+import VideoPlayer from "./VideoPlayer";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
@@ -126,7 +127,7 @@ export default function PostCommentsModal({
             {Boolean(tweet.content) && <p className={containsArabic(tweet.content) ? "arabic-text" : ""}>{tweet.content}</p>}
             {tweet.imageData && <img src={tweet.imageData} alt="Tweet media" className="feed-media-image" />}
             {tweet.audioData && <ChatAudioPlayer src={tweet.audioData} className="feed-media-audio" />}
-            {tweet.videoData && <video src={tweet.videoData} className="feed-media-video" controls preload="metadata" />}
+            {tweet.videoData && <VideoPlayer src={tweet.videoData} className="feed-media-video" />}
           </article>
 
           <div className={`comments-thread ${(!comments || comments.length === 0) ? 'comments-empty' : ''}`} ref={listRef}>

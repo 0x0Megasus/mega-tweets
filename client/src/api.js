@@ -70,7 +70,8 @@ export const api = {
   markNotificationRead: (token, notificationId) =>
     request("/api/notifications/read", token, { method: "POST", body: JSON.stringify({ notificationId }) }),
   clearNotifications: (token) => request("/api/notifications/clear", token, { method: "POST" }),
-  tweets: (token) => request("/api/tweets", token),
+  tweets: (token, { limit, since } = {}) =>
+    request(`/api/tweets?${new URLSearchParams({ ...(limit ? { limit: String(limit) } : {}), ...(since ? { since } : {}) })}`, token),
   createTweet: (token, payload) => request("/api/tweets", token, { method: "POST", body: JSON.stringify(payload) }),
   updateTweet: (token, tweetId, payload) => request(`/api/tweets/${tweetId}`, token, { method: "PUT", body: JSON.stringify(payload) }),
   deleteTweet: (token, tweetId) => request(`/api/tweets/${tweetId}`, token, { method: "DELETE" }),

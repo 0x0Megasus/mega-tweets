@@ -6,6 +6,8 @@ export default function ProfileView({
   saveProfile,
   soundSettings,
   setSoundSettings,
+  theme,
+  setTheme,
   onLogout,
   interestOptions = [],
 }) {
@@ -96,6 +98,15 @@ export default function ProfileView({
           </button>
         </form>
         <div className="sound-settings-box">
+          <h4>Appearance</h4>
+          <label className="sound-toggle">
+            <input
+              type="checkbox"
+              checked={theme === "light"}
+              onChange={(e) => setTheme(e.target.checked ? "light" : "dark")}
+            />
+            Light mode
+          </label>
           <h4>Sound Settings</h4>
           <label className="sound-toggle">
             <input

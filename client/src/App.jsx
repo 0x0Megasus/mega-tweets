@@ -62,6 +62,7 @@ function App() {
   const [token, setToken] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
   const [bootLoading, setBootLoading] = useState(false);
+  const [bootHydrated, setBootHydrated] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [loginLoading, setLoginLoading] = useState(false);
   const [error, setError] = useState("");
@@ -79,6 +80,7 @@ function App() {
   const [profileDraft, setProfileDraft] = useState({ nickname: "", bio: "", photoURL: "", interests: [] });
 
   const [tweets, setTweets] = useState([]);
+  const [feedLoading, setFeedLoading] = useState(false);
   const [commentCache, setCommentCache] = useState({});
   const [commentsModalTweetId, setCommentsModalTweetId] = useState("");
   const [postContent, setPostContent] = useState("");
@@ -136,6 +138,14 @@ function App() {
       return { notifications: true, dm: true, groups: true };
     }
   });
+  const [theme, setTheme] = useState(() => {
+    try {
+      const saved = localStorage.getItem("mega_tweets_theme");
+      return saved === "light" ? "light" : "dark";
+    } catch {
+      return "dark";
+    }
+  });
   const audioContextRef = useRef(null);
   const notificationsInitRef = useRef(false);
   const previousUnreadRef = useRef(0);
@@ -148,7 +158,7 @@ function App() {
   }, [location.pathname]);
 
   const busy = pendingCount > 0;
-  const checking = authLoading || (Boolean(firebaseUser) && bootLoading);
+  const checking = authLoading || (Boolean(firebaseUser) && !bootHydrated);
   const formatters = useMemo(() => ({
     timeOnly: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }),
     dateTime: new Intl.DateTimeFormat(undefined, {
@@ -209,6 +219,16 @@ function App() {
   useEffect(() => {
     localStorage.setItem("mega_tweets_sound_settings", JSON.stringify(soundSettings));
   }, [soundSettings]);
+
+  useEffect(() => {
+    const nextTheme = theme === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = nextTheme;
+    try {
+      localStorage.setItem("mega_tweets_theme", nextTheme);
+    } catch {
+      // ignore storage errors
+    }
+  }, [theme]);
 
   const withResolvedPhoto = (entity, fallbackPhotoURL = "") => {
     if (!entity) return entity;
@@ -364,13 +384,22 @@ function App() {
 
   const refreshBase = async () => {
     if (!token) return;
-    const [u, n, g] = await withLoad(() => Promise.all([api.users(token), api.notifications(token), api.groups(token)]));
+    const [u, n, g] = await withLoad(
+      () => Promise.all([api.users(token), api.notifications(token), api.groups(token)]),
+      { global: false },
+    );
     setUsers(u); setNotifications(n); setGroups(g);
   };
 
-  const refreshTweets = async () => {
+  const refreshTweets = async (options = {}) => {
     if (!token) return;
-    setTweets(await withLoad(() => api.tweets(token)));
+    setFeedLoading(true);
+    try {
+      const data = await withLoad(() => api.tweets(token, options), { global: false });
+      setTweets(data);
+    } finally {
+      setFeedLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -379,23 +408,48 @@ function App() {
     return () => window.removeEventListener("resize", onResize);
   }, []);
 
+  const cacheKey = (uid) => `mega_tweets_boot_${uid}`;
+  const readCache = (uid) => {
+    if (!uid) return null;
+    try {
+      const raw = localStorage.getItem(cacheKey(uid));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  };
+  const writeCache = (uid, data) => {
+    if (!uid) return;
+    try {
+      localStorage.setItem(cacheKey(uid), JSON.stringify(data));
+    } catch {
+      // ignore storage errors
+    }
+  };
+
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (u) => {
-      setFirebaseUser(u); setError("");
-      if (!u) { setToken(""); setProfile(null); setAuthLoading(false); setBootLoading(false); return; }
+      setFirebaseUser(u);
+      setError("");
+      setBootHydrated(false);
+      if (!u) {
+        setToken("");
+        setProfile(null);
+        setUsers([]);
+        setGroups([]);
+        setTweets([]);
+        setNotifications([]);
+        setAuthLoading(false);
+        setBootLoading(false);
+        return;
+      }
       try {
-        // Force token refresh to avoid stale cached tokens
-        const freshToken = await u.getIdToken(true);
-        setToken(freshToken);
-      } catch (e) {
-        console.warn("getIdToken(true) failed, falling back to cached token:", e?.code || e?.message);
-        try {
-          const cachedToken = await u.getIdToken(false);
-          setToken(cachedToken);
-        } catch (e2) {
-          console.error("Failed to get any ID token:", e2?.code || e2?.message);
-          setError("Authentication failed. Please sign out and sign in again.");
-        }
+        // Use cached token for faster boot; refresh on 401 later.
+        const cachedToken = await u.getIdToken(false);
+        setToken(cachedToken);
+      } catch (e2) {
+        console.error("Failed to get any ID token:", e2?.code || e2?.message);
+        setError("Authentication failed. Please sign out and sign in again.");
       }
       setAuthLoading(false);
     });
@@ -407,12 +461,30 @@ function App() {
     const boot = async () => {
       setBootLoading(true);
       try {
-        const [me, n, nv, g, u] = await withLoad(() => Promise.all([api.me(token), api.notifications(token), api.tweets(token), api.groups(token), api.users(token)]));
+        const cached = readCache(auth.currentUser?.uid);
+        if (cached?.profile) {
+          const cachedProfile = cached.profile;
+          setProfile(cachedProfile);
+          setUsers(cached.users || []);
+          setTweets(cached.tweets || []);
+          setGroups(cached.groups || []);
+          setNotifications(cached.notifications || []);
+          setProfileDraft({
+            nickname: cachedProfile.nickname || "",
+            bio: cachedProfile.bio || "",
+            photoURL: cachedProfile.photoURL || "",
+            interests: cachedProfile.interests || [],
+          });
+          setSetupNickname(cachedProfile.nickname || "");
+          setSetupBio(cachedProfile.bio || "");
+          setSetupInterests(cachedProfile.interests || []);
+          if ((cached.groups || [])[0] && !selectedGroup) setSelectedGroup(cached.groups[0].id);
+          setBootHydrated(true);
+        }
+
+        const me = await withLoad(() => api.me(token), { global: false });
         const hydratedMe = await syncMissingProfilePhoto(withResolvedPhoto(me, firebaseUser?.photoURL || ""));
-        const hydratedUsers = u.map((user) => (
-          user.uid === hydratedMe.uid ? withResolvedPhoto(user, hydratedMe.photoURL) : withResolvedPhoto(user)
-        ));
-        setProfile(hydratedMe); setNotifications(n); setTweets(nv); setGroups(g); setUsers(hydratedUsers);
+        setProfile(hydratedMe);
         setProfileDraft({
           nickname: hydratedMe.nickname || "",
           bio: hydratedMe.bio || "",
@@ -422,7 +494,20 @@ function App() {
         setSetupNickname(hydratedMe.nickname || "");
         setSetupBio(hydratedMe.bio || "");
         setSetupInterests(hydratedMe.interests || []);
-        if (g[0]) setSelectedGroup(g[0].id);
+
+        // Fast path: load tweets first, then hydrate the rest in the background.
+        await refreshTweets({ limit: 30 });
+        setBootHydrated(true);
+
+        refreshBase().catch(() => {});
+
+        writeCache(auth.currentUser?.uid, {
+          profile: hydratedMe,
+          notifications,
+          tweets,
+          groups,
+          users,
+        });
       } catch (e) {
         // If 401, try refreshing the token once and retry boot
         if (e?.status === 401 && auth.currentUser) {
@@ -441,7 +526,10 @@ function App() {
         });
         setError(e?.url ? `${e.message}\n${e.url}` : e.message);
       }
-      finally { setBootLoading(false); }
+      finally {
+        setBootLoading(false);
+        setBootHydrated(true);
+      }
     };
     boot();
   }, [token]);
@@ -473,7 +561,7 @@ function App() {
       timer = setTimeout(async () => {
         await syncGroupsAndNotifications();
         schedule();
-      }, 8000);
+      }, 15000);
     };
 
     const onVisibility = () => {
@@ -1054,11 +1142,11 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
+        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} />} />
         <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} />} />
         <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
         <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
-        <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
+        <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} theme={theme} setTheme={setTheme} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
         <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} focusedPostId={focusedPostId} />} />
       <Route path="*" element={<NotFoundPage />} />
       </Routes>

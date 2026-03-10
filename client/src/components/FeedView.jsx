@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FaComments, FaEllipsisH, FaGlobe, FaHeart, FaPlus } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
+import VideoPlayer from "./VideoPlayer";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
@@ -27,6 +28,7 @@ export default function FeedView(props) {
     title = "Tweets",
     showPublish = true,
     emptyText = "No tweets yet. Be the first to post one!",
+    feedLoading = false,
   } = props;
   const userByUid = Object.fromEntries((users || []).map((user) => [user.uid, user]));
   const postRefs = useRef({});
@@ -67,7 +69,7 @@ export default function FeedView(props) {
         <div className="cards">
           {tweets.length === 0 ? (
             <div className="empty-state">
-              <p>{emptyText}</p>
+              <p>{feedLoading ? "Loading feed..." : emptyText}</p>
             </div>
           ) : (
             tweets.map((n) => (
@@ -165,7 +167,7 @@ export default function FeedView(props) {
                       {n.audioData && <ChatAudioPlayer src={n.audioData} className="feed-media-audio" />}
                       {n.videoData && (
                         <div className="feed-media-video-wrap">
-                          <video src={n.videoData} className="feed-media-video" controls preload="metadata" />
+                          <VideoPlayer src={n.videoData} className="feed-media-video" />
                         </div>
                       )}
                       <div className="actions-row">

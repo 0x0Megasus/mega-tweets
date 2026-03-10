@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FaFileAudio, FaImage, FaMicrophone, FaPlus, FaStop, FaTimes, FaVideo } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
+import VideoPlayer from "./VideoPlayer";
 
 export default function PublishTweetModal({
   isOpen,
@@ -116,7 +117,7 @@ export default function PublishTweetModal({
             <div className="attachment-preview-row">
               {postImageData && <img src={postImageData} alt="Selected media" className="chat-media-image preview" />}
               {postAudioData && <ChatAudioPlayer src={postAudioData} className="is-preview" />}
-              {postVideoData && <video src={postVideoData} className="chat-media-video preview" controls preload="metadata" />}
+              {postVideoData && <VideoPlayer src={postVideoData} className="chat-media-video preview" />}
               <button
                 type="button"
                 className="icon-btn"

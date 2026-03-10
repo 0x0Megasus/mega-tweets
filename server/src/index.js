@@ -209,9 +209,6 @@ const authRequired = asyncHandler(async (req, res, next) => {
       return res.status(401).json({ error: "Missing auth token" });
     }
 
-    // Debug: log token length and first 20 chars to diagnose format issues
-    console.log(`[auth] token length=${token.length}, preview="${token.slice(0, 20)}..."`);
-
     const decoded = await auth.verifyIdToken(token);
     req.user = decoded;
 
@@ -403,6 +400,10 @@ app.post("/api/presence/view", asyncHandler(async (req, res) => {
 }));
 
 app.get("/api/tweets", asyncHandler(async (req, res) => {
+  const limitRaw = Number.parseInt(req.query?.limit || "0", 10);
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(limitRaw, 200) : 0;
+  const sinceIso = typeof req.query?.since === "string" ? req.query.since : "";
+  const sinceMs = sinceIso ? new Date(sinceIso).getTime() : 0;
   const [tweetsSnap, likesSnap, commentsSnap, followSnap, meProfile] = await Promise.all([
     db.ref("tweets").get(),
     db.ref("tweetLikes").get(),
@@ -431,7 +432,7 @@ app.get("/api/tweets", asyncHandler(async (req, res) => {
     return score;
   };
 
-  const result = Object.entries(tweets)
+  let result = Object.entries(tweets)
     .map(([id, value]) => ({
       id,
       ...value,
@@ -443,8 +444,20 @@ app.get("/api/tweets", asyncHandler(async (req, res) => {
     .sort((a, b) => {
       if ((b.rankScore || 0) !== (a.rankScore || 0)) return (b.rankScore || 0) - (a.rankScore || 0);
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    })
-    .map(({ rankScore, ...tweet }) => tweet);
+    });
+
+  if (sinceMs) {
+    result = result.filter((tweet) => {
+      const createdAt = new Date(tweet.createdAt || "").getTime();
+      return !Number.isNaN(createdAt) && createdAt >= sinceMs;
+    });
+  }
+
+  if (limit) {
+    result = result.slice(0, limit);
+  }
+
+  result = result.map(({ rankScore, ...tweet }) => tweet);
 
   return res.json(result);
 }));
