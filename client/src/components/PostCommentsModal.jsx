@@ -129,7 +129,7 @@ export default function PostCommentsModal({
             {tweet.videoData && <video src={tweet.videoData} className="feed-media-video" controls preload="metadata" />}
           </article>
 
-          <div className="comments-thread" ref={listRef}>
+          <div className={`comments-thread ${(!comments || comments.length === 0) ? 'comments-empty' : ''}`} ref={listRef}>
             {loading ? (
               <div className="empty-messages"><div className="spinner" /></div>
             ) : (
@@ -140,27 +140,28 @@ export default function PostCommentsModal({
             )}
           </div>
 
-          {replyTo && (
-            <div className="replying-chip comment-replying-chip">
-              Replying to {replyTo.authorNickname}
-              <button type="button" onClick={() => setReplyTo(null)}>
-                <FaTimes />
+          <form className={`row-form comment-compose-row ${replyTo ? 'replying' : ''}`} onSubmit={submitComment}>
+            {replyTo && (
+              <div className="replying-chip comment-replying-chip">
+                Replying to {replyTo.authorNickname}
+                <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply">
+                  <FaTimes />
+                </button>
+              </div>
+            )}
+            <div className="compose-inner">
+              <input
+                ref={inputRef}
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder={replyTo ? `Reply to ${replyTo.authorNickname}` : "Write a comment"}
+                minLength={2}
+                required
+              />
+              <button type="submit" className="send-icon-btn" disabled={loading}>
+                {loading ? <span className="btn-spinner" /> : <FaPaperPlane />}
               </button>
             </div>
-          )}
-
-          <form className="row-form comment-compose-row" onSubmit={submitComment}>
-            <input
-              ref={inputRef}
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={replyTo ? `Reply to ${replyTo.authorNickname}` : "Write a comment"}
-              minLength={2}
-              required
-            />
-            <button type="submit" className="send-icon-btn" disabled={loading}>
-              {loading ? <span className="btn-spinner" /> : <FaPaperPlane />}
-            </button>
           </form>
         </div>
       </div>

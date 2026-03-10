@@ -199,7 +199,9 @@ export default function DmView({
     if (!isRecording || !mediaRecorderRef.current) return;
     try {
       mediaRecorderRef.current.stop();
-    } catch {
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || "Unable to start recording. Please check microphone permissions.");
       resetRecorder();
     }
   };
@@ -234,7 +236,7 @@ export default function DmView({
       recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
     } catch (err) {
       console.error(err);
-      window.alert("Unable to start recording. Please check microphone permissions.");
+      window.alert(err?.message || "Unable to start recording. Please check microphone permissions.");
       resetRecorder();
     }
   };

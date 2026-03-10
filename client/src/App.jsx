@@ -12,7 +12,7 @@ import { Capacitor } from "@capacitor/core";
 import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
-import { api } from "./api";
+import { API_BASE_URL, api } from "./api";
 import "./App.css";
 const TopNav = lazy(() => import("./components/TopNav"));
 const AuthLanding = lazy(() => import("./components/AuthLanding"));
@@ -210,6 +210,31 @@ function App() {
     localStorage.setItem("mega_tweets_sound_settings", JSON.stringify(soundSettings));
   }, [soundSettings]);
 
+  const withResolvedPhoto = (entity, fallbackPhotoURL = "") => {
+    if (!entity) return entity;
+    return {
+      ...entity,
+      photoURL: entity.photoURL || entity.photoUrl || fallbackPhotoURL || "",
+    };
+  };
+
+  const syncMissingProfilePhoto = async (candidate) => {
+    if (!token || !candidate?.nickname || !(candidate?.interests || []).length || candidate.photoURL) return candidate;
+    const fallbackPhotoURL = firebaseUser?.photoURL || "";
+    if (!fallbackPhotoURL) return candidate;
+    try {
+      return await api.saveProfile(token, {
+        fullName: candidate.fullName || candidate.nickname,
+        nickname: candidate.nickname,
+        bio: candidate.bio || "",
+        photoURL: fallbackPhotoURL,
+        interests: candidate.interests || [],
+      });
+    } catch {
+      return withResolvedPhoto(candidate, fallbackPhotoURL);
+    }
+  };
+
   const markPostsSeen = (postIds) => {
     if (!profile?.uid || !postIds.length) return;
     const storageKey = `mega_tweets_seen_posts_${profile.uid}`;
@@ -369,18 +394,31 @@ function App() {
       setBootLoading(true);
       try {
         const [me, n, nv, g, u] = await withLoad(() => Promise.all([api.me(token), api.notifications(token), api.tweets(token), api.groups(token), api.users(token)]));
-        setProfile(me); setNotifications(n); setTweets(nv); setGroups(g); setUsers(u);
+        const hydratedMe = await syncMissingProfilePhoto(withResolvedPhoto(me, firebaseUser?.photoURL || ""));
+        const hydratedUsers = u.map((user) => (
+          user.uid === hydratedMe.uid ? withResolvedPhoto(user, hydratedMe.photoURL) : withResolvedPhoto(user)
+        ));
+        setProfile(hydratedMe); setNotifications(n); setTweets(nv); setGroups(g); setUsers(hydratedUsers);
         setProfileDraft({
-          nickname: me.nickname || "",
-          bio: me.bio || "",
-          photoURL: me.photoURL || "",
-          interests: me.interests || [],
+          nickname: hydratedMe.nickname || "",
+          bio: hydratedMe.bio || "",
+          photoURL: hydratedMe.photoURL || "",
+          interests: hydratedMe.interests || [],
         });
-        setSetupNickname(me.nickname || "");
-        setSetupBio(me.bio || "");
-        setSetupInterests(me.interests || []);
+        setSetupNickname(hydratedMe.nickname || "");
+        setSetupBio(hydratedMe.bio || "");
+        setSetupInterests(hydratedMe.interests || []);
         if (g[0]) setSelectedGroup(g[0].id);
-      } catch (e) { setError(e.message); }
+      } catch (e) {
+        console.error("Boot failed", {
+          message: e?.message,
+          url: e?.url,
+          path: e?.path,
+          apiBaseUrl: API_BASE_URL,
+          cause: e?.cause?.message || "",
+        });
+        setError(e?.url ? `${e.message}\n${e.url}` : e.message);
+      }
       finally { setBootLoading(false); }
     };
     boot();
@@ -634,14 +672,16 @@ function App() {
         fullName: setupNickname,
         nickname: setupNickname,
         bio: setupBio,
+        photoURL: firebaseUser?.photoURL || "",
         interests: setupInterests,
       }));
-      setProfile(me);
+      const hydratedMe = withResolvedPhoto(me, firebaseUser?.photoURL || "");
+      setProfile(hydratedMe);
       setProfileDraft({
-        nickname: me.nickname || "",
-        bio: me.bio || "",
-        photoURL: me.photoURL || "",
-        interests: me.interests || [],
+        nickname: hydratedMe.nickname || "",
+        bio: hydratedMe.bio || "",
+        photoURL: hydratedMe.photoURL || "",
+        interests: hydratedMe.interests || [],
       });
       await refreshBase();
     } catch (e) { setError(e.message); }
@@ -654,10 +694,10 @@ function App() {
         fullName: profileDraft.nickname,
         nickname: profileDraft.nickname,
         bio: profileDraft.bio,
-        photoURL: profileDraft.photoURL,
+        photoURL: profileDraft.photoURL || firebaseUser?.photoURL || "",
         interests: profileDraft.interests || [],
       }));
-      setProfile(me); await refreshBase();
+      setProfile(withResolvedPhoto(me, firebaseUser?.photoURL || "")); await refreshBase();
     } catch (x) { setError(x.message); }
   };
 

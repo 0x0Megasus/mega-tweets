@@ -51,7 +51,9 @@ export default function PublishTweetModal({
     if (!isRecording || !mediaRecorderRef.current) return;
     try {
       mediaRecorderRef.current.stop();
-    } catch {
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || "Unable to start recording. Please check microphone permissions.");
       resetRecorder();
     }
   };
@@ -83,7 +85,9 @@ export default function PublishTweetModal({
       setRecordingSeconds(0);
       setIsRecording(true);
       recordingTimerRef.current = setInterval(() => setRecordingSeconds((s) => s + 1), 1000);
-    } catch {
+    } catch (err) {
+      console.error(err);
+      window.alert(err?.message || "Unable to start recording. Please check microphone permissions.");
       resetRecorder();
     }
   };

@@ -1,25 +1,63 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:4000";
 
 async function request(path, token, options = {}) {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(options.headers || {}),
-    },
-  });
+  const url = `${API_BASE_URL}${path}`;
+  const method = options.method || "GET";
+  const headers = {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`,
+    ...(options.headers || {}),
+  };
 
-  const data = await response.json().catch(() => ({}));
+  try {
+    if (Capacitor.isNativePlatform()) {
+      const response = await CapacitorHttp.request({
+        url,
+        method,
+        headers,
+        data: options.body ? JSON.parse(options.body) : undefined,
+      });
 
-  if (!response.ok) {
-    const error = new Error(data.error || "Request failed");
-    error.status = response.status;
-    error.payload = data;
-    throw error;
+      const data = response.data ?? {};
+      if (response.status < 200 || response.status >= 300) {
+        const error = new Error(data.error || `Request failed for ${url}`);
+        error.status = response.status;
+        error.payload = data;
+        error.url = url;
+        error.path = path;
+        throw error;
+      }
+
+      return data;
+    }
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    const data = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const error = new Error(data.error || `Request failed for ${url}`);
+      error.status = response.status;
+      error.payload = data;
+      error.url = url;
+      error.path = path;
+      throw error;
+    }
+
+    return data;
+  } catch (error) {
+    if (error?.url) throw error;
+    const nextError = new Error(`Network request failed for ${url}`);
+    nextError.cause = error;
+    nextError.url = url;
+    nextError.path = path;
+    throw nextError;
   }
-
-  return data;
 }
 
 export const api = {
