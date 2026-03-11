@@ -93,6 +93,8 @@ export default function GroupsView(props) {
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState("");
   const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const [inviteCopied, setInviteCopied] = useState(false);
   const messageRefs = useRef({});
   const memberByUid = Object.fromEntries((groupMembers || []).map((member) => [member.uid, member]));
   const lastMessageIdRef = useRef("");
@@ -376,7 +378,7 @@ export default function GroupsView(props) {
       )}
 
       {(!isMobile || mobileGroupPage === "chat") && (
-        <article className="panel groups-chat-panel chat-panel">
+        <article className={`panel groups-chat-panel chat-panel ${isComposerFocused ? "composer-focused" : ""}`}>
           {isMobile && (
             <button type="button" className="back-btn" onClick={() => setMobileGroupPage("list")}>
               Back to groups
@@ -402,10 +404,19 @@ export default function GroupsView(props) {
                     <span>{selectedGroupData.inviteLink}</span>
                     <button
                       type="button"
-                      onClick={() => navigator.clipboard?.writeText(selectedGroupData.inviteLink)}
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard?.writeText(selectedGroupData.inviteLink);
+                          setInviteCopied(true);
+                          setTimeout(() => setInviteCopied(false), 1600);
+                        } catch {
+                          setInviteCopied(false);
+                        }
+                      }}
                     >
                       <FaCopy />
                     </button>
+                    {inviteCopied && <small className="copy-toast">Copied</small>}
                   </div>
                 )}
                 {selectedGroupData.isAdmin && (
@@ -567,6 +578,8 @@ export default function GroupsView(props) {
                     value={groupDraft}
                     onChange={(e) => setGroupDraft(e.target.value)}
                     placeholder="Write to group"
+                    onFocus={() => setIsComposerFocused(true)}
+                    onBlur={() => setIsComposerFocused(false)}
                   />
                   <input
                     ref={imageInputRef}

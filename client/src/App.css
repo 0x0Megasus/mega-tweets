@@ -2376,8 +2376,8 @@ h1, h2, h3, h4 { margin: 0; }
 }
 
 /* Hide admin rows while typing in groups */
-.groups-chat-panel:focus-within .invite-link-row,
-.groups-chat-panel:focus-within .group-admin-tools {
+.groups-chat-panel.composer-focused .invite-link-row,
+.groups-chat-panel.composer-focused .group-admin-tools {
   opacity: 0;
   height: 0;
   margin: 0;
@@ -2385,6 +2385,22 @@ h1, h2, h3, h4 { margin: 0; }
   border: 0;
   overflow: hidden;
   pointer-events: none;
+}
+
+.invite-link-row {
+  position: relative;
+}
+.invite-link-row .copy-toast {
+  position: absolute;
+  right: 40px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
 }
 .primary-btn:active,
 .secondary-btn:active,
