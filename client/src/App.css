@@ -1585,6 +1585,7 @@ h1, h2, h3, h4 { margin: 0; }
     border-left: 0;
     border-right: 0;
     border-bottom: 0;
+    overflow-x: hidden;
   }
   .brand {
     display: none;
@@ -1593,6 +1594,10 @@ h1, h2, h3, h4 { margin: 0; }
     width: 100%;
     justify-content: space-between;
     flex-wrap: nowrap;
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    gap: 4px;
   }
   .tab-btn {
     min-width: 52px;
@@ -1601,7 +1606,7 @@ h1, h2, h3, h4 { margin: 0; }
     font-size: 17px;
     padding: 0;
     gap: 0;
-    flex: 1 1 20%;
+    flex: 0 0 auto;
   }
   .tab-btn span {
     display: none;
@@ -1611,10 +1616,7 @@ h1, h2, h3, h4 { margin: 0; }
     height: 36px;
   }
   .user-pill {
-    width: auto;
-    margin-left: 6px;
-    justify-content: flex-end;
-    gap: 0;
+    display: none;
   }
   .user-pill .avatar,
   .user-pill span {
@@ -2339,14 +2341,14 @@ h1, h2, h3, h4 { margin: 0; }
 .comment-like-btn,
 .comment-reply-btn,
 .stop-recording-btn {
-  border-bottom: 0;
+  border: 1px solid var(--button-border);
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   box-shadow: none;
 }
 .actions-row .action-btn,
 .comment-like-btn,
 .comment-reply-btn {
-  border-bottom: 1px solid var(--button-border);
+  border: 1px solid var(--accent-2);
 }
 .primary-btn:hover,
 .secondary-btn:hover,
