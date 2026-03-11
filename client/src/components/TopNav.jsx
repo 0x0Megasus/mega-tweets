@@ -12,7 +12,7 @@ export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, badge
 
   return (
     <nav className="top-nav">
-      <div className="brand"><FaFeatherAlt /><span>Mega Tweets</span></div>
+      <div className="brand"><FaFeatherAlt /><span>Mega Tweets <span className="brand-beta-label">(beta)</span></span></div>
       <div className="tab-row">
         {tabs.map((t) => (
           <button type="button" key={t} className={`tab-btn ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>

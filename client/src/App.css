@@ -116,6 +116,9 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .top-nav { position: sticky; top: 10px; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; border-radius: var(--radius); border: 1px solid var(--line); background: #282b30; }
 .brand, .user-pill { display: flex; align-items: center; gap: 8px; }
+.brand .brand-beta-label{
+    font-variant: small-caps;
+}
 .tab-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; flex: 1; }
 .tab-btn { height: 36px; border: 0; border-bottom: 2px solid transparent; background: var(--panel); color: #d7d9dd; border-radius: 0 0 6px 6px; padding: 0 12px; min-width: 104px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
 .tab-btn.active { border-bottom-color: #7289da; background: var(--panel); color: #fff; }
@@ -204,7 +207,7 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .meta-row, .author-row, .actions-row, .comment-item, .message-item { display: flex; align-items: flex-start; gap: 4px; }
 .message-item { width: 100%; min-width: 0; }
-.actions-row { margin-top: 2px; }
+.actions-row { margin-top: 2px; justify-content: flex-end; }
 .meta-row { justify-content: space-between; }
 .author-row small, .tweet-card small, .message-item small, .comment-item small { color: var(--muted); font-size: 12px; }
 .tweet-card .author-row { margin-bottom: 6px; }
@@ -245,6 +248,16 @@ h1, h2, h3, h4 { margin: 0; }
 .msg-user-link:hover strong,
 .member-profile-link:hover strong {
   text-decoration: underline;
+}
+.dm-layout .msg-user-link,
+.groups-layout .msg-user-link,
+.groups-layout .member-profile-link {
+  text-decoration: none;
+}
+.dm-layout .msg-user-link:hover strong,
+.groups-layout .msg-user-link:hover strong,
+.groups-layout .member-profile-link:hover strong {
+  text-decoration: none;
 }
 .member-profile-link {
   display: inline-flex;
@@ -901,6 +914,28 @@ h1, h2, h3, h4 { margin: 0; }
 .notfound-link { display: inline-flex; align-items: center; justify-content: center; margin-top: 16px; text-decoration: none; }
 
 .loading-overlay { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; background: rgba(0,0,0,.55); }
+.toast {
+  position: fixed;
+  right: 16px;
+  bottom: 90px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--text);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: toast-in 0.25s ease;
+}
+.toast-success { border-color: rgba(40, 209, 124, 0.7); }
+.toast-error { border-color: rgba(224, 90, 90, 0.7); }
+@keyframes toast-in {
+  from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
 .confirm-card { width: min(420px, 92vw); border: 1px solid #424549; border-radius: 8px; background: var(--panel); padding: 14px; }
 .confirm-card h4 { margin: 0 0 8px; }
 .confirm-card p { margin: 0 0 10px; color: #d1d5db; }
@@ -1188,6 +1223,40 @@ h1, h2, h3, h4 { margin: 0; }
 
 .modal-actions button {
   flex: 1;
+}
+.post-progress {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+.post-progress__label {
+  display: flex;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 13px;
+}
+.post-progress__track {
+  position: relative;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+.post-progress__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #28d17c, #00c2ff, #28d17c);
+  background-size: 200% 100%;
+  box-shadow: 0 0 12px rgba(40, 209, 124, 0.35);
+  transition: width 0.2s ease;
+  animation: post-progress-flow 1.6s ease infinite;
+}
+@keyframes post-progress-flow {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
 }
 
 .secondary-btn {
@@ -1908,7 +1977,7 @@ h1, h2, h3, h4 { margin: 0; }
     margin-top: 8px;
     flex-wrap: wrap;
     gap: 4px;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
   .tweet-card .actions-row button {
     flex: 0 0 auto;

@@ -179,6 +179,9 @@ export default function FeedView(props) {
                         </div>
                       )}
                       <div className="actions-row">
+                        <button type="button" className="action-btn" onClick={() => openCommentsModal(n.id)} disabled={commentLoadingId === n.id}>
+                          {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
+                        </button>
                         <button
                           type="button"
                           className={`action-btn like-btn ${n.likedByMe ? "active" : ""}`}
@@ -186,9 +189,6 @@ export default function FeedView(props) {
                           disabled={likeLoadingId === n.id}
                         >
                           {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
-                        </button>
-                        <button type="button" className="action-btn" onClick={() => openCommentsModal(n.id)} disabled={commentLoadingId === n.id}>
-                          {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
                         </button>
                       </div>
                     </>

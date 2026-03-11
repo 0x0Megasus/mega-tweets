@@ -15,6 +15,8 @@ export default function PublishTweetModal({
   postVideoData,
   setPostVideoData,
   postTweet,
+  postProgress = 0,
+  postPosting = false,
 }) {
   const imageInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -24,6 +26,10 @@ export default function PublishTweetModal({
   const audioChunksRef = useRef([]);
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const handleClose = () => {
+    if (postPosting) return;
+    onClose();
+  };
 
   const toDataUrl = (file, maxBytes, onDone, label) => {
     if (!file) return;
@@ -98,11 +104,11 @@ export default function PublishTweetModal({
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content modal-publish" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3><FaPlus /> Publish Tweet</h3>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">
+          <button className="modal-close-btn" onClick={handleClose} aria-label="Close modal" disabled={postPosting}>
             <FaTimes />
           </button>
         </div>
@@ -112,6 +118,7 @@ export default function PublishTweetModal({
             onChange={(e) => setPostContent(e.target.value)}
             placeholder="What's happening?"
             rows={8}
+            disabled={postPosting}
           />
           {(postImageData || postAudioData || postVideoData) && (
             <div className="attachment-preview-row">
@@ -126,6 +133,7 @@ export default function PublishTweetModal({
                   setPostAudioData("");
                   setPostVideoData("");
                 }}
+                disabled={postPosting}
               >
                 <FaTimes />
               </button>
@@ -171,27 +179,41 @@ export default function PublishTweetModal({
                 }
               }, "Video")}
             />
-            <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()}>
+            <button type="button" className="icon-btn" onClick={() => imageInputRef.current?.click()} disabled={postPosting}>
               <FaImage />
             </button>
             <button
               type="button"
               className={`icon-btn ${isRecording ? "recording" : ""}`}
               onClick={isRecording ? stopRecording : startRecording}
+              disabled={postPosting}
             >
               {isRecording ? <FaStop /> : <FaMicrophone />}
             </button>
-            <button type="button" className="icon-btn" onClick={() => audioInputRef.current?.click()}>
+            <button type="button" className="icon-btn" onClick={() => audioInputRef.current?.click()} disabled={postPosting}>
               <FaFileAudio />
             </button>
-            <button type="button" className="icon-btn" onClick={() => videoInputRef.current?.click()} title="Upload video">
+            <button type="button" className="icon-btn" onClick={() => videoInputRef.current?.click()} title="Upload video" disabled={postPosting}>
               <FaVideo />
             </button>
             {isRecording && <small>Recording {recordingSeconds}s</small>}
           </div>
+          {postPosting && (
+            <div className="post-progress">
+              <div className="post-progress__label">
+                <span>Uploading</span>
+                <span>{Math.min(100, Math.max(0, Math.round(postProgress)))}%</span>
+              </div>
+              <div className="post-progress__track" aria-hidden="true">
+                <div className="post-progress__fill" style={{ width: `${Math.min(100, Math.max(0, postProgress))}%` }} />
+              </div>
+            </div>
+          )}
           <div className="modal-actions">
-            <button className="primary-btn" type="submit">Post Tweet</button>
-            <button className="secondary-btn" type="button" onClick={onClose}>Cancel</button>
+            <button className="primary-btn" type="submit" disabled={postPosting}>
+              {postPosting ? "Posting..." : "Post Tweet"}
+            </button>
+            <button className="secondary-btn" type="button" onClick={handleClose} disabled={postPosting}>Cancel</button>
           </div>
         </form>
       </div>

@@ -92,6 +92,9 @@ function App() {
   const [postImageData, setPostImageData] = useState("");
   const [postAudioData, setPostAudioData] = useState("");
   const [postVideoData, setPostVideoData] = useState("");
+  const [postProgress, setPostProgress] = useState(0);
+  const [postPosting, setPostPosting] = useState(false);
+  const [toast, setToast] = useState(null);
   const [editingId, setEditingId] = useState("");
   const [editContent, setEditContent] = useState("");
 
@@ -156,6 +159,9 @@ function App() {
   const previousUnreadRef = useRef(0);
   const dmBaselineRef = useRef({ uid: "", lastId: "" });
   const groupBaselineRef = useRef({ groupId: "", lastId: "" });
+  const feedBaselineRef = useRef({ lastId: "" });
+  const postProgressTimerRef = useRef(null);
+  const toastTimerRef = useRef(null);
 
   const currentTab = useMemo(() => {
     const firstSegment = location.pathname.split("/")[1];
@@ -324,6 +330,16 @@ function App() {
     }
   }, []);
 
+  const notifyWeb = useCallback((title, body, tag) => {
+    if (typeof document === "undefined" || !document.hidden) return;
+    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+    try {
+      new Notification(title, { body, tag });
+    } catch {
+      // ignore notification errors
+    }
+  }, []);
+
   useEffect(() => {
     if (currentTab !== "feed" || !tweets.length) return;
     markPostsSeen(tweets.map((n) => n.id));
@@ -354,9 +370,17 @@ function App() {
     }
     if (latest.id !== dmBaselineRef.current.lastId) {
       if (latest.senderUid !== profile?.uid && soundSettings.dm) playSound("dm");
+      if (latest.senderUid !== profile?.uid) {
+        const sender = users.find((u) => u.uid === latest.senderUid);
+        notifyWeb(
+          "New DM",
+          `${sender?.nickname || "Someone"}: ${(latest.text || "").slice(0, 80)}`,
+          `dm:${latest.senderUid}`,
+        );
+      }
       dmBaselineRef.current.lastId = latest.id;
     }
-  }, [dmMessages, dmTargetUid, profile?.uid, soundSettings.dm, playSound]);
+  }, [dmMessages, dmTargetUid, profile?.uid, soundSettings.dm, playSound, users, notifyWeb]);
 
   useEffect(() => {
     const latest = groupMessages[groupMessages.length - 1];
@@ -370,9 +394,39 @@ function App() {
     }
     if (latest.id !== groupBaselineRef.current.lastId) {
       if (latest.senderUid !== profile?.uid && soundSettings.groups) playSound("group");
+      if (latest.senderUid !== profile?.uid) {
+        const groupName = groups.find((g) => g.id === selectedGroup)?.name || "Group";
+        notifyWeb(
+          `New message in ${groupName}`,
+          `${latest.senderNickname || "Someone"}: ${(latest.text || "").slice(0, 80)}`,
+          `group:${selectedGroup}`,
+        );
+      }
       groupBaselineRef.current.lastId = latest.id;
     }
-  }, [groupMessages, selectedGroup, profile?.uid, soundSettings.groups, playSound]);
+  }, [groupMessages, selectedGroup, profile?.uid, soundSettings.groups, playSound, groups, notifyWeb]);
+
+  useEffect(() => {
+    if (!tweets.length) return;
+    const latest = tweets[0];
+    if (!latest?.id) return;
+    if (!feedBaselineRef.current.lastId) {
+      feedBaselineRef.current.lastId = latest.id;
+      return;
+    }
+    if (!document.hidden) {
+      feedBaselineRef.current.lastId = latest.id;
+      return;
+    }
+    if (latest.id !== feedBaselineRef.current.lastId && latest.authorUid !== profile?.uid) {
+      notifyWeb(
+        "New tweet",
+        `${latest.authorNickname || "Someone"}: ${(latest.content || "").slice(0, 80)}`,
+        `tweet:${latest.id}`,
+      );
+    }
+    feedBaselineRef.current.lastId = latest.id;
+  }, [tweets, profile?.uid, notifyWeb]);
 
   useEffect(() => {
     if (!focusedPostId) return;
@@ -398,6 +452,35 @@ function App() {
     const inc = options?.global !== false;
     if (inc) setPendingCount((v) => v + 1);
     try { return await task(); } finally { if (inc) setPendingCount((v) => Math.max(0, v - 1)); }
+  };
+
+  const showToast = useCallback((type, message) => {
+    setToast({ type, message });
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToast(null), 2600);
+  }, []);
+
+  const startPostProgress = () => {
+    if (postProgressTimerRef.current) clearInterval(postProgressTimerRef.current);
+    setPostPosting(true);
+    setPostProgress(6);
+    postProgressTimerRef.current = setInterval(() => {
+      setPostProgress((prev) => {
+        if (prev >= 90) return prev;
+        const step = Math.max(2, Math.round((90 - prev) / 10));
+        return Math.min(90, prev + step);
+      });
+    }, 420);
+  };
+
+  const stopPostProgress = (finalValue = 100) => {
+    if (postProgressTimerRef.current) clearInterval(postProgressTimerRef.current);
+    postProgressTimerRef.current = null;
+    setPostProgress(finalValue);
+    setTimeout(() => {
+      setPostPosting(false);
+      setPostProgress(0);
+    }, 450);
   };
 
   const refreshBase = async () => {
@@ -432,6 +515,11 @@ function App() {
     const onResize = () => setIsMobile(window.innerWidth < 960);
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  useEffect(() => () => {
+    if (postProgressTimerRef.current) clearInterval(postProgressTimerRef.current);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
   }, []);
 
   const cacheKey = (uid) => `mega_tweets_boot_${uid}`;
@@ -869,12 +957,14 @@ function App() {
 
   const postTweet = async (e) => {
     e.preventDefault();
+    if (postPosting) return;
     const content = postContent.trim();
     if (content.length < 2 && !postImageData && !postAudioData && !postVideoData) {
       setError("Tweet content must be at least 2 characters or include media");
       return;
     }
     try {
+      startPostProgress();
       await withLoad(() => api.createTweet(token, {
         content,
         imageData: postImageData,
@@ -886,8 +976,15 @@ function App() {
       setPostAudioData("");
       setPostVideoData("");
       await refreshTweets();
+      showToast("success", "Tweet posted");
+      stopPostProgress(100);
+      setShowPublishModal(false);
     }
-    catch (x) { setError(x.message); }
+    catch (x) {
+      setError(x.message);
+      showToast("error", "Post failed");
+      stopPostProgress(35);
+    }
   };
 
   const likeTweet = async (id) => {
@@ -1211,10 +1308,9 @@ function App() {
         setPostAudioData={setPostAudioData}
         postVideoData={postVideoData}
         setPostVideoData={setPostVideoData}
-        postTweet={(e) => {
-          postTweet(e);
-          setShowPublishModal(false);
-        }}
+        postTweet={postTweet}
+        postProgress={postProgress}
+        postPosting={postPosting}
       />
 
       {pendingLeaveGroupId && <ConfirmLeaveModal onConfirm={confirmLeaveDelete} onCancel={() => setPendingLeaveGroupId("")} />}
@@ -1232,6 +1328,11 @@ function App() {
         containsArabic={containsArabic}
         onOpenProfile={(uid) => navigate(`/users/${uid}`)}
       />
+        {toast && (
+          <div className={`toast toast-${toast.type}`} role="status" aria-live="polite">
+            <span>{toast.message}</span>
+          </div>
+        )}
         {busy && !pendingLeaveGroupId && <div className="loading-overlay" role="status" aria-live="polite"><div className="spinner" /></div>}
       </div>
     </Suspense>
