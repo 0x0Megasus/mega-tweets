@@ -73,6 +73,7 @@ export default function DmView({
   setDmVideoData,
   focusedDmMessageId,
   onOpenProfile,
+  dmUnreadByUser = {},
 }) {
   const listRef = useRef(null);
   const chatInputRef = useRef(null);
@@ -86,6 +87,7 @@ export default function DmView({
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState("");
   const [showMediaOptions, setShowMediaOptions] = useState(false);
+  const [shouldFocusComposer, setShouldFocusComposer] = useState(false);
   const messageRefs = useRef({});
   const profileByUid = Object.fromEntries(
     [profile, ...others].filter(Boolean).map((user) => [user.uid, user]),
@@ -156,11 +158,15 @@ export default function DmView({
   }, [focusedDmMessageId, dmMessages]);
 
   useEffect(() => {
+    if (!shouldFocusComposer) return;
     if (!dmTargetUid) return;
     if (isMobile && mobileDmPage !== "chat") return;
-    const timer = setTimeout(() => chatInputRef.current?.focus(), 0);
+    const timer = setTimeout(() => {
+      chatInputRef.current?.focus();
+      setShouldFocusComposer(false);
+    }, 0);
     return () => clearTimeout(timer);
-  }, [dmTargetUid, dmReplyTo, isMobile, mobileDmPage]);
+  }, [shouldFocusComposer, dmTargetUid, isMobile, mobileDmPage]);
 
   useEffect(() => {
     if (!isMobile) setShowMediaOptions(false);
@@ -269,6 +275,7 @@ export default function DmView({
                   onError={handleAvatarError}
                 />
                 <span style={{ color: usernameColor(u.uid, u.nickname) }}>{u.nickname}</span>
+                {dmUnreadByUser[u.uid] ? <em className="dm-unread-badge">{dmUnreadByUser[u.uid]}</em> : null}
               </button>
             ))}
             {otherUsers.length > 0 && <small className="dm-user-group-title">Others</small>}
@@ -290,6 +297,7 @@ export default function DmView({
                   onError={handleAvatarError}
                 />
                 <span style={{ color: usernameColor(u.uid, u.nickname) }}>{u.nickname}</span>
+                {dmUnreadByUser[u.uid] ? <em className="dm-unread-badge">{dmUnreadByUser[u.uid]}</em> : null}
               </button>
             ))}
           </div>
@@ -383,7 +391,10 @@ export default function DmView({
                             <button
                               type="button"
                               className="reply-btn"
-                              onClick={() => setDmReplyTo(m)}
+                              onClick={() => {
+                                setDmReplyTo(m);
+                                setShouldFocusComposer(true);
+                              }}
                             >
                               <FaReply /> Reply
                             </button>

@@ -4,7 +4,7 @@ const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="100%" height="100%" fill="#575b66"/><circle cx="32" cy="24" r="12" fill="#cfd2d8"/><rect x="16" y="40" width="32" height="16" rx="8" fill="#cfd2d8"/></svg>',
 )}`;
 
-export default function NotificationsView({ notifications, notifText, timeAgo, openNotification, clearNotifications }) {
+export default function NotificationsView({ notifications, notifText, timeAgo, openNotification, clearNotifications, notificationOpeningId = "" }) {
   return (
     <section className="feed-layout-full">
       <article className="panel">
@@ -45,6 +45,7 @@ export default function NotificationsView({ notifications, notifText, timeAgo, o
                   <p>{notifText(n)}</p>
                   <small>{timeAgo(n.createdAt)}</small>
                 </div>
+                {notificationOpeningId === n.id && <span className="btn-spinner" />}
               </button>
             ))
           )}

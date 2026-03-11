@@ -25,8 +25,10 @@ export default function PostCommentsModal({
 }) {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
+  const [shouldFocusInput, setShouldFocusInput] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
+  const isMobile = window.innerWidth < 960;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -45,9 +47,17 @@ export default function PostCommentsModal({
 
   useEffect(() => {
     if (!isOpen) return;
+    if (isMobile) {
+      if (!shouldFocusInput) return;
+      const timer = setTimeout(() => {
+        inputRef.current?.focus();
+        setShouldFocusInput(false);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
     const timer = setTimeout(() => inputRef.current?.focus(), 0);
     return () => clearTimeout(timer);
-  }, [isOpen, replyTo?.id]);
+  }, [isOpen, replyTo?.id, isMobile, shouldFocusInput]);
 
   const commentsByParent = useMemo(() => {
     const map = {};
@@ -86,7 +96,14 @@ export default function PostCommentsModal({
               >
                 <FaHeart /> {comment.likesCount || 0}
               </button>
-              <button type="button" className="comment-reply-btn" onClick={() => setReplyTo(comment)}>
+              <button
+                type="button"
+                className="comment-reply-btn"
+                onClick={() => {
+                  setReplyTo(comment);
+                  setShouldFocusInput(true);
+                }}
+              >
                 <FaReply /> Reply
               </button>
             </div>

@@ -94,6 +94,7 @@ export default function GroupsView(props) {
   const [previewImage, setPreviewImage] = useState("");
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [isComposerFocused, setIsComposerFocused] = useState(false);
+  const [shouldFocusComposer, setShouldFocusComposer] = useState(false);
   const [inviteCopied, setInviteCopied] = useState(false);
   const messageRefs = useRef({});
   const memberByUid = Object.fromEntries((groupMembers || []).map((member) => [member.uid, member]));
@@ -103,12 +104,12 @@ export default function GroupsView(props) {
 
   const sortedMembers = useMemo(() => {
     return [...groupMembers].sort((a, b) => {
+      if (a.isAdmin && !b.isAdmin) return -1;
+      if (!a.isAdmin && b.isAdmin) return 1;
       const aSelf = a.uid === profile?.uid;
       const bSelf = b.uid === profile?.uid;
       if (aSelf && !bSelf) return -1;
       if (!aSelf && bSelf) return 1;
-      if (a.isAdmin && !b.isAdmin) return -1;
-      if (!a.isAdmin && b.isAdmin) return 1;
       return (a.nickname || "").localeCompare(b.nickname || "");
     });
   }, [groupMembers, profile?.uid]);
@@ -267,11 +268,15 @@ export default function GroupsView(props) {
   }, [focusedGroupMessageId, groupMessages]);
 
   useEffect(() => {
+    if (!shouldFocusComposer) return;
     if (!selectedGroupData?.joined) return;
     if (isMobile && mobileGroupPage !== "chat") return;
-    const timer = setTimeout(() => chatInputRef.current?.focus(), 0);
+    const timer = setTimeout(() => {
+      chatInputRef.current?.focus();
+      setShouldFocusComposer(false);
+    }, 0);
     return () => clearTimeout(timer);
-  }, [selectedGroupData?.id, selectedGroupData?.joined, groupReplyTo, isMobile, mobileGroupPage]);
+  }, [shouldFocusComposer, selectedGroupData?.id, selectedGroupData?.joined, isMobile, mobileGroupPage]);
 
   useEffect(() => {
     if (!isMobile) setShowMediaOptions(false);
@@ -516,11 +521,14 @@ export default function GroupsView(props) {
                             {m.senderUid !== profile.uid && (
                               <button
                                 type="button"
-                                className="reply-btn"
-                                onClick={() => setGroupReplyTo(m)}
-                              >
-                                <FaReply /> Reply
-                              </button>
+                              className="reply-btn"
+                              onClick={() => {
+                                setGroupReplyTo(m);
+                                setShouldFocusComposer(true);
+                              }}
+                            >
+                              <FaReply /> Reply
+                            </button>
                             )}
                           </div>
                         </div>

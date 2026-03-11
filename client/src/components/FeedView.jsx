@@ -29,6 +29,7 @@ export default function FeedView(props) {
     showPublish = true,
     emptyText = "No tweets yet. Be the first to post one!",
     feedLoading = false,
+    feedLoadedOnce = false,
   } = props;
   const userByUid = Object.fromEntries((users || []).map((user) => [user.uid, user]));
   const postRefs = useRef({});
@@ -69,7 +70,14 @@ export default function FeedView(props) {
         <div className="cards">
           {tweets.length === 0 ? (
             <div className="empty-state">
-              <p>{feedLoading ? "Loading feed..." : emptyText}</p>
+              {feedLoading || !feedLoadedOnce ? (
+                <div className="loading-inline">
+                  <div className="spinner" />
+                  <p>Loading feed...</p>
+                </div>
+              ) : (
+                <p>{emptyText}</p>
+              )}
             </div>
           ) : (
             tweets.map((n) => (

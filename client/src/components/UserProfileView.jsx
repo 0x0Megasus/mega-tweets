@@ -27,6 +27,7 @@ export default function UserProfileView({
   delTweet,
   onOpenProfile,
   onToggleFollow,
+  onOpenDm,
   focusedPostId,
 }) {
   const { uid = "" } = useParams();
@@ -63,9 +64,14 @@ export default function UserProfileView({
           <p>{viewed.bio || "No bio"}</p>
           <p>{viewed.followerCount || 0} followers • {viewed.followingCount || 0} following</p>
           {!isSelf && (
-            <button type="button" className="primary-btn" onClick={() => onToggleFollow?.(viewed.uid)}>
-              {viewed.isFollowing ? "Unfollow" : "Follow"}
-            </button>
+            <div className="profile-actions">
+              <button type="button" className="secondary-btn" onClick={() => onOpenDm?.(viewed.uid)}>
+                Message
+              </button>
+              <button type="button" className="primary-btn" onClick={() => onToggleFollow?.(viewed.uid)}>
+                {viewed.isFollowing ? "Unfollow" : "Follow"}
+              </button>
+            </div>
           )}
         </div>
       </article>

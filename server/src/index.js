@@ -419,7 +419,7 @@ app.get("/api/tweets", asyncHandler(async (req, res) => {
   const interests = sanitizeInterests(meProfile?.interests || []);
   const now = Date.now();
 
-  const scoreTweet = (tweet) => {
+  const scoreTweet = (tweet, likesCount, commentsCount) => {
     let score = 0;
     if (tweet.authorUid === req.user.uid) score += 80;
     if (following[tweet.authorUid]) score += 120;
@@ -428,19 +428,26 @@ app.get("/api/tweets", asyncHandler(async (req, res) => {
       if (haystack.includes(interest)) score += 30;
     });
     const ageHours = Math.max(0, (now - new Date(tweet.createdAt).getTime()) / 3_600_000);
+    const likeBoost = Math.log2(1 + (likesCount || 0)) * 18;
+    const commentBoost = Math.log2(1 + (commentsCount || 0)) * 24;
+    score += likeBoost + commentBoost;
     score += Math.max(0, 48 - ageHours);
     return score;
   };
 
   let result = Object.entries(tweets)
-    .map(([id, value]) => ({
-      id,
-      ...value,
-      likesCount: likes[id] ? Object.keys(likes[id]).length : 0,
-      likedByMe: Boolean(likes[id]?.[req.user.uid]),
-      commentsCount: comments[id] ? Object.keys(comments[id]).length : 0,
-      rankScore: scoreTweet(value),
-    }))
+    .map(([id, value]) => {
+      const likesCount = likes[id] ? Object.keys(likes[id]).length : 0;
+      const commentsCount = comments[id] ? Object.keys(comments[id]).length : 0;
+      return {
+        id,
+        ...value,
+        likesCount,
+        likedByMe: Boolean(likes[id]?.[req.user.uid]),
+        commentsCount,
+        rankScore: scoreTweet(value, likesCount, commentsCount),
+      };
+    })
     .sort((a, b) => {
       if ((b.rankScore || 0) !== (a.rankScore || 0)) return (b.rankScore || 0) - (a.rankScore || 0);
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();

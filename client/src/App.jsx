@@ -20,6 +20,7 @@ const SetupProfile = lazy(() => import("./components/SetupProfile"));
 const FeedView = lazy(() => import("./components/FeedView"));
 const GroupsView = lazy(() => import("./components/GroupsView"));
 const DmView = lazy(() => import("./components/DmView"));
+const PeopleView = lazy(() => import("./components/PeopleView"));
 const NotificationsView = lazy(() => import("./components/NotificationsView"));
 const ProfileView = lazy(() => import("./components/ProfileView"));
 const UserProfileView = lazy(() => import("./components/UserProfileView"));
@@ -28,7 +29,7 @@ const PublishTweetModal = lazy(() => import("./components/PublishTweetModal"));
 const PostCommentsModal = lazy(() => import("./components/PostCommentsModal"));
 const NotFoundPage = lazy(() => import("./components/NotFoundPage"));
 
-const TABS = ["feed", "groups", "dm", "notifications", "profile"];
+const TABS = ["feed", "groups", "dm", "people", "notifications", "profile"];
 export const INTEREST_OPTIONS = [
   "technology",
   "gaming",
@@ -81,8 +82,10 @@ function App() {
 
   const [tweets, setTweets] = useState([]);
   const [feedLoading, setFeedLoading] = useState(false);
+  const [feedLoadedOnce, setFeedLoadedOnce] = useState(false);
   const [commentCache, setCommentCache] = useState({});
   const [commentsModalTweetId, setCommentsModalTweetId] = useState("");
+  const [notificationOpeningId, setNotificationOpeningId] = useState("");
   const [postContent, setPostContent] = useState("");
   const [postImageData, setPostImageData] = useState("");
   const [postAudioData, setPostAudioData] = useState("");
@@ -199,10 +202,23 @@ function App() {
   const isDmChatVisible = currentTab === "dm" && (!isMobile || mobileDmPage === "chat");
   const unreadNotificationsCount = useMemo(() => notifications.filter((n) => !n.read).length, [notifications]);
   const unreadNotifications = useMemo(() => notifications.filter((n) => !n.read), [notifications]);
+  const dmUnreadByUser = useMemo(() => {
+    const counts = {};
+    notifications.forEach((n) => {
+      if (!n.read && n.type === "dm_reply" && n.actorUid) {
+        counts[n.actorUid] = (counts[n.actorUid] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [notifications]);
+  const dmUnreadTotal = useMemo(
+    () => Object.values(dmUnreadByUser).reduce((sum, val) => sum + val, 0),
+    [dmUnreadByUser],
+  );
   const unseenFeedCount = useMemo(() => tweets.filter((n) => !seenPostIds[n.id]).length, [tweets, seenPostIds]);
   const badgeCounts = useMemo(
-    () => ({ feed: unseenFeedCount, notifications: unreadNotificationsCount }),
-    [unseenFeedCount, unreadNotificationsCount],
+    () => ({ feed: unseenFeedCount, dm: dmUnreadTotal, notifications: unreadNotificationsCount }),
+    [unseenFeedCount, dmUnreadTotal, unreadNotificationsCount],
   );
 
   useEffect(() => {
@@ -396,7 +412,9 @@ function App() {
     setFeedLoading(true);
     try {
       const data = await withLoad(() => api.tweets(token, options), { global: false });
-      setTweets(data);
+      const filtered = data.filter((n) => !seenPostIds[n.id] || n.authorUid === profile?.uid);
+      setTweets(filtered);
+      setFeedLoadedOnce(true);
     } finally {
       setFeedLoading(false);
     }
@@ -467,6 +485,7 @@ function App() {
           setProfile(cachedProfile);
           setUsers(cached.users || []);
           setTweets(cached.tweets || []);
+          setFeedLoadedOnce(Boolean(cached.tweets && cached.tweets.length));
           setGroups(cached.groups || []);
           setNotifications(cached.notifications || []);
           setProfileDraft({
@@ -1065,6 +1084,7 @@ function App() {
 
   const openNotification = async (notification) => {
     if (!notification) return;
+    setNotificationOpeningId(notification.id || "");
     if (!notification.read) await markRead(notification.id);
 
     if ((notification.type === "tweet_like" || notification.type === "tweet_comment") && notification.tweetId) {
@@ -1106,7 +1126,25 @@ function App() {
       return;
     }
     navigate("/notifications");
+    setTimeout(() => setNotificationOpeningId(""), 300);
   };
+
+  const openDmWithUser = (uid) => {
+    if (!uid) return;
+    setDmTargetUid(uid);
+    setMobileDmPage("chat");
+    setFocusedDmMessageId("");
+    navigate("/dm");
+  };
+
+  useEffect(() => {
+    if (!dmTargetUid || !isDmChatVisible) return;
+    const toMark = notifications.filter(
+      (n) => !n.read && n.type === "dm_reply" && n.actorUid === dmTargetUid,
+    );
+    if (!toMark.length) return;
+    toMark.forEach((n) => markRead(n.id));
+  }, [dmTargetUid, isDmChatVisible, notifications]);
 
   if (checking) return <div className="center-screen loading-screen"><div className="spinner" /></div>;
   if (!firebaseUser) {
@@ -1142,12 +1180,13 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} />} />
+        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} feedLoadedOnce={feedLoadedOnce} />} />
         <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} />} />
-        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
-        <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} />} />
+        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmUnreadByUser={dmUnreadByUser} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
+        <Route path="/people" element={<PeopleView users={users} profile={profile} onToggleFollow={toggleFollowUser} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onOpenDm={openDmWithUser} />} />
+        <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} notificationOpeningId={notificationOpeningId} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} theme={theme} setTheme={setTheme} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
-        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} focusedPostId={focusedPostId} />} />
+        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} onOpenDm={openDmWithUser} focusedPostId={focusedPostId} />} />
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
 

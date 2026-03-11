@@ -1,4 +1,4 @@
-import { FaBell, FaComments, FaFeatherAlt, FaHashtag, FaUser, FaUsers } from "react-icons/fa";
+import { FaBell, FaComments, FaFeatherAlt, FaHashtag, FaUser, FaUsers, FaUserFriends } from "react-icons/fa";
 
 export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, badgeCounts = {} }) {
   const tabMeta = {
@@ -6,6 +6,7 @@ export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, badge
     groups: { label: "Groups", icon: <FaUsers /> },
     dm: { label: "Direct", icon: <FaComments /> },
     notifications: { label: "Notifications", icon: <FaBell /> },
+    people: { label: "People", icon: <FaUserFriends /> },
     profile: { label: "Profile", icon: <FaUser /> },
   };
 
