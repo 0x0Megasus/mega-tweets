@@ -2045,6 +2045,7 @@ h1, h2, h3, h4 { margin: 0; }
   width: min(1180px, calc(100% - 24px));
 }
 .top-nav {
+  margin-bottom: 6px;
   background: var(--glass);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-soft);
