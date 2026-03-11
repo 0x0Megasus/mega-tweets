@@ -73,7 +73,7 @@ export default function FeedView(props) {
               {feedLoading || !feedLoadedOnce ? (
                 <div className="loading-inline">
                   <div className="spinner" />
-                  <p>Loading feed...</p>
+                  <p>Loading Tweets..</p>
                 </div>
               ) : (
                 <p>{emptyText}</p>

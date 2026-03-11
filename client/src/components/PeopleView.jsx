@@ -7,7 +7,7 @@ const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
 
 const pickAvatar = (...values) => values.find((value) => typeof value === "string" && value.trim()) || FALLBACK_AVATAR;
 
-export default function PeopleView({ users = [], profile, onToggleFollow, onOpenProfile, onOpenDm }) {
+export default function PeopleView({ users = [], usersLoading = false, usersLoadedOnce = false, profile, onToggleFollow, onOpenProfile, onOpenDm }) {
   const list = useMemo(
     () => users.filter((u) => u.uid && u.uid !== profile?.uid && u.nickname),
     [users, profile?.uid],
@@ -45,11 +45,20 @@ export default function PeopleView({ users = [], profile, onToggleFollow, onOpen
           <h3><FaUsers /> People</h3>
         </div>
         <div className="user-list">
-          {following.length > 0 && <small className="dm-user-group-title">Following</small>}
-          {following.map(renderUser)}
-          {others.length > 0 && <small className="dm-user-group-title">Discover</small>}
-          {others.map(renderUser)}
-          {list.length === 0 && <p className="empty-messages">No users yet.</p>}
+          {usersLoading || !usersLoadedOnce ? (
+            <div className="loading-inline">
+              <div className="spinner" />
+              <p>Loading people...</p>
+            </div>
+          ) : (
+            <>
+              {following.length > 0 && <small className="dm-user-group-title">Following</small>}
+              {following.map(renderUser)}
+              {others.length > 0 && <small className="dm-user-group-title">Discover</small>}
+              {others.map(renderUser)}
+              {list.length === 0 && <p className="empty-messages">No users yet.</p>}
+            </>
+          )}
         </div>
       </article>
     </section>

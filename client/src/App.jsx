@@ -72,6 +72,8 @@ function App() {
 
   const [profile, setProfile] = useState(null);
   const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersLoadedOnce, setUsersLoadedOnce] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [focusedPostId, setFocusedPostId] = useState("");
   const [seenPostIds, setSeenPostIds] = useState({});
@@ -400,11 +402,17 @@ function App() {
 
   const refreshBase = async () => {
     if (!token) return;
-    const [u, n, g] = await withLoad(
-      () => Promise.all([api.users(token), api.notifications(token), api.groups(token)]),
-      { global: false },
-    );
-    setUsers(u); setNotifications(n); setGroups(g);
+    setUsersLoading(true);
+    try {
+      const [u, n, g] = await withLoad(
+        () => Promise.all([api.users(token), api.notifications(token), api.groups(token)]),
+        { global: false },
+      );
+      setUsers(u); setNotifications(n); setGroups(g);
+      setUsersLoadedOnce(true);
+    } finally {
+      setUsersLoading(false);
+    }
   };
 
   const refreshTweets = async (options = {}) => {
@@ -484,6 +492,8 @@ function App() {
           const cachedProfile = cached.profile;
           setProfile(cachedProfile);
           setUsers(cached.users || []);
+          setUsersLoadedOnce(Boolean(cached.users && cached.users.length));
+          setUsersLoading(false);
           setTweets(cached.tweets || []);
           setFeedLoadedOnce(Boolean(cached.tweets && cached.tweets.length));
           setGroups(cached.groups || []);
@@ -1183,7 +1193,7 @@ function App() {
         <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} feedLoadedOnce={feedLoadedOnce} />} />
         <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} />} />
         <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmUnreadByUser={dmUnreadByUser} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
-        <Route path="/people" element={<PeopleView users={users} profile={profile} onToggleFollow={toggleFollowUser} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onOpenDm={openDmWithUser} />} />
+        <Route path="/people" element={<PeopleView users={users} usersLoading={usersLoading} usersLoadedOnce={usersLoadedOnce} profile={profile} onToggleFollow={toggleFollowUser} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onOpenDm={openDmWithUser} />} />
         <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} notificationOpeningId={notificationOpeningId} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} theme={theme} setTheme={setTheme} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
         <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} onOpenDm={openDmWithUser} focusedPostId={focusedPostId} />} />
