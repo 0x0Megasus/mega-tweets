@@ -30,10 +30,28 @@ export default function FeedView(props) {
     emptyText = "No tweets yet. Be the first to post one!",
     feedLoading = false,
     feedLoadedOnce = false,
+    feedHasMore = false,
+    onLoadMore,
+    openLikesModal,
   } = props;
   const userByUid = Object.fromEntries((users || []).map((user) => [user.uid, user]));
   const postRefs = useRef({});
+  const sentinelRef = useRef(null);
   const [openMenuId, setOpenMenuId] = useState("");
+  const likedByText = (tweet) => {
+    const count = tweet.likesCount || 0;
+    if (count < 1) return "";
+    const ids = tweet.likedByUids || [];
+    const names = ids.map((uid) => {
+      if (uid === profile?.uid) return "You";
+      return userByUid[uid]?.nickname || "Someone";
+    }).filter(Boolean);
+    if (tweet.likedByMe && !names.includes("You")) names.unshift("You");
+    if (!names.length) return `Liked by ${count} people`;
+    const tail = Math.max(0, count - names.length);
+    const list = names.join(", ");
+    return tail > 0 ? `Liked by ${list} and ${tail} others` : `Liked by ${list}`;
+  };
 
   useEffect(() => {
     if (!focusedPostId) return;
@@ -48,6 +66,22 @@ export default function FeedView(props) {
     document.addEventListener("click", onDocClick);
     return () => document.removeEventListener("click", onDocClick);
   }, [openMenuId]);
+
+  useEffect(() => {
+    if (!onLoadMore || !feedHasMore) return;
+    const target = sentinelRef.current;
+    if (!target) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) onLoadMore();
+        });
+      },
+      { root: null, rootMargin: "120px", threshold: 0.1 },
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [onLoadMore, feedHasMore]);
 
   const postDownloadInfo = (post) => {
     if (post.videoData) return { href: post.videoData, filename: `tweet-video-${post.id}.${extensionFromDataUrl(post.videoData, "mp4")}` };
@@ -136,7 +170,7 @@ export default function FeedView(props) {
                             {openMenuId === n.id && (
                               <div className="owner-options-menu">
                                 {download && (
-                                  <a href={download.href} download={download.filename} className="post-media-download-link">
+                                  <a href={download.href} download={download.filename} className="owner-options-btn post-media-download-btn">
                                     Download
                                   </a>
                                 )}
@@ -178,7 +212,15 @@ export default function FeedView(props) {
                           <VideoPlayer src={n.videoData} className="feed-media-video" />
                         </div>
                       )}
-                      <div className="actions-row">
+                      <div className="actions-row tweet-actions-row">
+                        <div className="actions-left">
+                          {n.likesCount >= 1 && (
+                            <button type="button" className="liked-by-btn" onClick={() => openLikesModal?.(n.id)}>
+                              {likedByText(n)}
+                            </button>
+                          )}
+                        </div>
+                        <div className="actions-right">
                         <button type="button" className="action-btn" onClick={() => openCommentsModal(n.id)} disabled={commentLoadingId === n.id}>
                           {commentLoadingId === n.id ? <span className="btn-spinner" /> : <><FaComments /> {n.commentsCount}</>}
                         </button>
@@ -190,12 +232,19 @@ export default function FeedView(props) {
                         >
                           {likeLoadingId === n.id ? <span className="btn-spinner" /> : <><FaHeart /> {n.likesCount}</>}
                         </button>
+                        </div>
                       </div>
                     </>
                   );
                 })()}
               </div>
             ))
+          )}
+          {tweets.length > 0 && (
+            <div className="feed-sentinel" ref={sentinelRef}>
+              {feedLoading && <div className="loading-inline"><div className="spinner" /><p>Loading Tweets..</p></div>}
+              {!feedHasMore && <p className="feed-end">You reached the end.</p>}
+            </div>
           )}
         </div>
       </article>

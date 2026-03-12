@@ -720,7 +720,7 @@ export default function GroupsView(props) {
                     </>
                   )}
                   <button type="submit" className="send-icon-btn" disabled={groupSending}>
-                    {groupSending ? <span className="btn-spinner" /> : <FaPaperPlane />}
+                    {groupSending ? <span className="btn-spinner" /> : <FaPaperPlane color="#fff" />}
                   </button>
                 </form>
                 {isRecording && (

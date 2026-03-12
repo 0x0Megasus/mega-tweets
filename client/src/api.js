@@ -76,8 +76,11 @@ export const api = {
   updateTweet: (token, tweetId, payload) => request(`/api/tweets/${tweetId}`, token, { method: "PUT", body: JSON.stringify(payload) }),
   deleteTweet: (token, tweetId) => request(`/api/tweets/${tweetId}`, token, { method: "DELETE" }),
   toggleLike: (token, tweetId) => request(`/api/tweets/${tweetId}/like`, token, { method: "POST" }),
+  tweetLikes: (token, tweetId) => request(`/api/tweets/${tweetId}/likes`, token),
   comments: (token, tweetId) => request(`/api/tweets/${tweetId}/comments`, token),
   addComment: (token, tweetId, payload) => request(`/api/tweets/${tweetId}/comments`, token, { method: "POST", body: JSON.stringify(payload) }),
+  updateComment: (token, tweetId, commentId, payload) =>
+    request(`/api/tweets/${tweetId}/comments/${commentId}`, token, { method: "PUT", body: JSON.stringify(payload) }),
   toggleCommentLike: (token, tweetId, commentId) => request(`/api/tweets/${tweetId}/comments/${commentId}/like`, token, { method: "POST" }),
   groups: (token) => request("/api/groups", token),
   createGroup: (token, payload) => request("/api/groups", token, { method: "POST", body: JSON.stringify(payload) }),

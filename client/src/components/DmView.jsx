@@ -587,7 +587,7 @@ export default function DmView({
                   </>
                 )}
                 <button type="submit" className="send-icon-btn" disabled={dmSending}>
-                  {dmSending ? <span className="btn-spinner" /> : <FaPaperPlane />}
+                  {dmSending ? <span className="btn-spinner" /> : <FaPaperPlane color="#fff" />}
                 </button>
               </form>
               {isRecording && (

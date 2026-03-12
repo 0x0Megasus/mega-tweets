@@ -18,6 +18,8 @@ export default function PostCommentsModal({
   sendComment,
   likeComment,
   commentLikeLoadingId,
+  editComment,
+  commentEditLoadingId,
   profile,
   timeAgo,
   containsArabic,
@@ -25,6 +27,8 @@ export default function PostCommentsModal({
 }) {
   const [draft, setDraft] = useState("");
   const [replyTo, setReplyTo] = useState(null);
+  const [editingId, setEditingId] = useState("");
+  const [editingText, setEditingText] = useState("");
   const [shouldFocusInput, setShouldFocusInput] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
@@ -43,6 +47,8 @@ export default function PostCommentsModal({
     if (!isOpen) return;
     setDraft("");
     setReplyTo(null);
+    setEditingId("");
+    setEditingText("");
   }, [isOpen, tweet?.id]);
 
   useEffect(() => {
@@ -76,6 +82,8 @@ export default function PostCommentsModal({
     if (!nodes.length) return null;
     return nodes.map((comment) => {
       const loadingKey = `${tweet.id}:${comment.id}`;
+      const isOwner = comment.authorUid === profile?.uid;
+      const isEditing = editingId === comment.id;
       return (
         <div key={comment.id} className={`comment-node depth-${Math.min(depth, 3)}`}>
           <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(comment.authorUid)}>
@@ -85,9 +93,46 @@ export default function PostCommentsModal({
             <button type="button" className="profile-link-btn comment-author" onClick={() => onOpenProfile?.(comment.authorUid)}>
               <strong>{comment.authorNickname}</strong>
             </button>
-            <p className={containsArabic(comment.text) ? "arabic-text" : ""}>{comment.text}</p>
+            {isEditing ? (
+              <div className="comment-edit">
+                <input
+                  value={editingText}
+                  onChange={(e) => setEditingText(e.target.value)}
+                  className={containsArabic(editingText) ? "arabic-text" : ""}
+                />
+                <div className="comment-edit-actions">
+                  <button
+                    type="button"
+                    className="comment-reply-btn"
+                    disabled={commentEditLoadingId === loadingKey}
+                    onClick={async () => {
+                      await editComment?.(tweet.id, comment.id, editingText);
+                      setEditingId("");
+                      setEditingText("");
+                    }}
+                  >
+                    {commentEditLoadingId === loadingKey ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    className="comment-reply-btn"
+                    onClick={() => {
+                      setEditingId("");
+                      setEditingText("");
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <p className={containsArabic(comment.text) ? "arabic-text" : ""}>{comment.text}</p>
+            )}
             <div className="comment-node-actions">
-              <small>{timeAgo(comment.createdAt)}</small>
+              <small>
+                {timeAgo(comment.createdAt)}
+                {comment.updatedAt ? " · edited" : ""}
+              </small>
               <button
                 type="button"
                 className={`comment-like-btn ${comment.likedByMe ? "active" : ""}`}
@@ -96,6 +141,20 @@ export default function PostCommentsModal({
               >
                 <FaHeart /> {comment.likesCount || 0}
               </button>
+              {isOwner && !isEditing && (
+                <button
+                  type="button"
+                  className="comment-reply-btn"
+                  onClick={() => {
+                    setEditingId(comment.id);
+                    setEditingText(comment.text || "");
+                    setReplyTo(null);
+                    setShouldFocusInput(false);
+                  }}
+                >
+                  Edit
+                </button>
+              )}
               <button
                 type="button"
                 className="comment-reply-btn"
@@ -177,7 +236,7 @@ export default function PostCommentsModal({
                 required
               />
               <button type="submit" className="send-icon-btn" disabled={loading}>
-                {loading ? <span className="btn-spinner" /> : <FaPaperPlane />}
+                {loading ? <span className="btn-spinner" /> : <FaPaperPlane color="#fff" />}
               </button>
             </div>
           </form>

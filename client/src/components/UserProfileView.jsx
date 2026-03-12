@@ -23,6 +23,7 @@ export default function UserProfileView({
   likeLoadingId,
   commentLoadingId,
   openCommentsModal,
+  openLikesModal,
   startEdit,
   delTweet,
   onOpenProfile,
@@ -88,6 +89,7 @@ export default function UserProfileView({
         likeLoadingId={likeLoadingId}
         commentLoadingId={commentLoadingId}
         openCommentsModal={openCommentsModal}
+        openLikesModal={openLikesModal}
         profile={profile}
         startEdit={startEdit}
         delTweet={delTweet}

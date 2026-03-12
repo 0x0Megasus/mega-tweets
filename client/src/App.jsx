@@ -27,6 +27,7 @@ const UserProfileView = lazy(() => import("./components/UserProfileView"));
 const ConfirmLeaveModal = lazy(() => import("./components/ConfirmLeaveModal"));
 const PublishTweetModal = lazy(() => import("./components/PublishTweetModal"));
 const PostCommentsModal = lazy(() => import("./components/PostCommentsModal"));
+const PostLikesModal = lazy(() => import("./components/PostLikesModal"));
 const NotFoundPage = lazy(() => import("./components/NotFoundPage"));
 
 const TABS = ["feed", "groups", "dm", "people", "notifications", "profile"];
@@ -85,8 +86,13 @@ function App() {
   const [tweets, setTweets] = useState([]);
   const [feedLoading, setFeedLoading] = useState(false);
   const [feedLoadedOnce, setFeedLoadedOnce] = useState(false);
+  const [feedLimit, setFeedLimit] = useState(30);
+  const [feedHasMore, setFeedHasMore] = useState(true);
   const [commentCache, setCommentCache] = useState({});
   const [commentsModalTweetId, setCommentsModalTweetId] = useState("");
+  const [likesModalTweetId, setLikesModalTweetId] = useState("");
+  const [likesModalLoading, setLikesModalLoading] = useState(false);
+  const [likesModalUsers, setLikesModalUsers] = useState([]);
   const [notificationOpeningId, setNotificationOpeningId] = useState("");
   const [postContent, setPostContent] = useState("");
   const [postImageData, setPostImageData] = useState("");
@@ -132,6 +138,7 @@ function App() {
   const [likeLoadingId, setLikeLoadingId] = useState("");
   const [commentLoadingId, setCommentLoadingId] = useState("");
   const [commentLikeLoadingId, setCommentLikeLoadingId] = useState("");
+  const [commentEditLoadingId, setCommentEditLoadingId] = useState("");
   const [soundSettings, setSoundSettings] = useState(() => {
     try {
       const raw = localStorage.getItem("mega_tweets_sound_settings");
@@ -502,9 +509,12 @@ function App() {
     if (!token) return;
     setFeedLoading(true);
     try {
-      const data = await withLoad(() => api.tweets(token, options), { global: false });
+      const limit = options?.limit || feedLimit;
+      const data = await withLoad(() => api.tweets(token, { ...options, limit }), { global: false });
       const filtered = data.filter((n) => !seenPostIds[n.id] || n.authorUid === profile?.uid);
       setTweets(filtered);
+      setFeedLimit(limit);
+      setFeedHasMore(data.length >= limit);
       setFeedLoadedOnce(true);
     } finally {
       setFeedLoading(false);
@@ -678,7 +688,7 @@ function App() {
       timer = setTimeout(async () => {
         await syncGroupsAndNotifications();
         schedule();
-      }, 15000);
+      }, 30000);
     };
 
     const onVisibility = () => {
@@ -707,6 +717,7 @@ function App() {
     let mounted = true;
     let timer;
     const pingPresence = async () => {
+      if (typeof document !== "undefined" && document.hidden) return;
       try {
         await api.presenceView(token, activeView);
       } catch {
@@ -716,7 +727,7 @@ function App() {
     pingPresence();
     timer = setInterval(() => {
       if (mounted) pingPresence();
-    }, 8000);
+    }, 20000);
     return () => {
       mounted = false;
       clearInterval(timer);
@@ -725,6 +736,8 @@ function App() {
 
   useEffect(() => {
     if (!token) return;
+    if (typeof document !== "undefined" && document.hidden) return;
+    if (currentTab !== "feed") return;
     let mounted = true;
     let inFlight = false;
 
@@ -732,7 +745,7 @@ function App() {
       if (inFlight) return;
       inFlight = true;
       try {
-        const latest = await withLoad(() => api.tweets(token), { global: false });
+        const latest = await withLoad(() => api.tweets(token, { limit: feedLimit }), { global: false });
         if (mounted) setTweets(latest);
       } catch {
         // keep UI responsive even if periodic sync fails
@@ -741,12 +754,12 @@ function App() {
       }
     };
 
-    const timer = setInterval(syncFeed, 20000);
+    const timer = setInterval(syncFeed, 60000);
     return () => {
       mounted = false;
       clearInterval(timer);
     };
-  }, [token]);
+  }, [token, currentTab, feedLimit]);
 
   useEffect(() => {
     if (!token || !selectedGroup || !isGroupChatVisible) return;
@@ -993,14 +1006,25 @@ function App() {
     if (!current) return;
     const optimisticLiked = !current.likedByMe;
     const optimisticCount = Math.max(0, (current.likesCount || 0) + (optimisticLiked ? 1 : -1));
+    const optimisticLikedBy = (() => {
+      const base = current.likedByUids || [];
+      if (!profile?.uid) return base;
+      if (optimisticLiked) {
+        if (base.includes(profile.uid)) return base;
+        return base.length < 3 ? [...base, profile.uid] : base;
+      }
+      return base.filter((uid) => uid !== profile.uid);
+    })();
     setTweets((prev) => prev.map((tweet) => (
-      tweet.id === id ? { ...tweet, likedByMe: optimisticLiked, likesCount: optimisticCount } : tweet
+      tweet.id === id ? { ...tweet, likedByMe: optimisticLiked, likesCount: optimisticCount, likedByUids: optimisticLikedBy } : tweet
     )));
     try {
       setLikeLoadingId(id);
       const result = await withLoad(() => api.toggleLike(token, id), { global: false });
       setTweets((prev) => prev.map((tweet) => (
-        tweet.id === id ? { ...tweet, likedByMe: result.liked, likesCount: result.likesCount } : tweet
+        tweet.id === id
+          ? { ...tweet, likedByMe: result.liked, likesCount: result.likesCount, likedByUids: result.likedByUids || tweet.likedByUids }
+          : tweet
       )));
     } catch (e) {
       setTweets((prev) => prev.map((tweet) => (tweet.id === id ? current : tweet)));
@@ -1081,9 +1105,23 @@ function App() {
       setError("Tweet content must be at least 2 characters");
       return;
     }
-    try { await withLoad(() => api.updateTweet(token, id, { content })); setEditingId(""); await refreshTweets(); } catch (x) { setError(x.message); }
+    try { await withLoad(() => api.updateTweet(token, id, { content })); setEditingId(""); await refreshTweets({ limit: feedLimit }); } catch (x) { setError(x.message); }
   };
-  const delTweet = async (id) => { try { await withLoad(() => api.deleteTweet(token, id)); await refreshTweets(); } catch (x) { setError(x.message); } };
+
+  const openLikesModal = async (tweetId) => {
+    if (!tweetId) return;
+    setLikesModalTweetId(tweetId);
+    setLikesModalLoading(true);
+    try {
+      const liked = await withLoad(() => api.tweetLikes(token, tweetId), { global: false });
+      setLikesModalUsers(liked || []);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLikesModalLoading(false);
+    }
+  };
+  const delTweet = async (id) => { try { await withLoad(() => api.deleteTweet(token, id)); await refreshTweets({ limit: feedLimit }); } catch (x) { setError(x.message); } };
 
   const createGroup = async (e) => { e.preventDefault(); try { const g = await withLoad(() => api.createGroup(token, { name: groupName, description: groupDesc })); setGroupName(""); setGroupDesc(""); setSelectedGroup(g.id); setMobileGroupPage("chat"); await refreshBase(); } catch (x) { setError(x.message); } };
 
@@ -1236,6 +1274,46 @@ function App() {
     setTimeout(() => setNotificationOpeningId(""), 300);
   };
 
+  const editComment = async (tweetId, commentId, text) => {
+    if (!tweetId || !commentId) return;
+    const trimmed = text.trim();
+    if (trimmed.length < 2) {
+      setError("Comment must be at least 2 characters");
+      return;
+    }
+    const loadingKey = `${tweetId}:${commentId}`;
+    if (commentEditLoadingId === loadingKey) return;
+    const source = commentCache[tweetId] || [];
+    const current = source.find((comment) => comment.id === commentId);
+    if (!current) return;
+
+    setCommentEditLoadingId(loadingKey);
+    setCommentCache((prev) => ({
+      ...prev,
+      [tweetId]: (prev[tweetId] || []).map((comment) => (
+        comment.id === commentId ? { ...comment, text: trimmed, updatedAt: new Date().toISOString() } : comment
+      )),
+    }));
+    try {
+      const updated = await withLoad(
+        () => api.updateComment(token, tweetId, commentId, { text: trimmed }),
+        { global: false },
+      );
+      setCommentCache((prev) => ({
+        ...prev,
+        [tweetId]: (prev[tweetId] || []).map((comment) => (comment.id === commentId ? updated : comment)),
+      }));
+    } catch (x) {
+      setCommentCache((prev) => ({
+        ...prev,
+        [tweetId]: (prev[tweetId] || []).map((comment) => (comment.id === commentId ? current : comment)),
+      }));
+      setError(x.message);
+    } finally {
+      setCommentEditLoadingId("");
+    }
+  };
+
   const openDmWithUser = (uid) => {
     if (!uid) return;
     setDmTargetUid(uid);
@@ -1287,13 +1365,13 @@ function App() {
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} feedLoadedOnce={feedLoadedOnce} />} />
+        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} openLikesModal={openLikesModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} feedLoadedOnce={feedLoadedOnce} feedHasMore={feedHasMore} onLoadMore={loadMoreFeed} />} />
         <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} />} />
         <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmUnreadByUser={dmUnreadByUser} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
         <Route path="/people" element={<PeopleView users={users} usersLoading={usersLoading} usersLoadedOnce={usersLoadedOnce} profile={profile} onToggleFollow={toggleFollowUser} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onOpenDm={openDmWithUser} />} />
         <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} notificationOpeningId={notificationOpeningId} />} />
         <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} theme={theme} setTheme={setTheme} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
-        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} onOpenDm={openDmWithUser} focusedPostId={focusedPostId} />} />
+        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} openLikesModal={openLikesModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} onOpenDm={openDmWithUser} focusedPostId={focusedPostId} />} />
       <Route path="*" element={<NotFoundPage />} />
       </Routes>
 
@@ -1323,9 +1401,21 @@ function App() {
         sendComment={sendComment}
         likeComment={likeComment}
         commentLikeLoadingId={commentLikeLoadingId}
+        editComment={editComment}
+        commentEditLoadingId={commentEditLoadingId}
         profile={profile}
         timeAgo={timeAgo}
         containsArabic={containsArabic}
+        onOpenProfile={(uid) => navigate(`/users/${uid}`)}
+      />
+      <PostLikesModal
+        isOpen={Boolean(likesModalTweetId)}
+        onClose={() => setLikesModalTweetId("")}
+        likes={likesModalUsers}
+        loading={likesModalLoading}
+        profile={profile}
+        onToggleFollow={toggleFollowUser}
+        onOpenDm={openDmWithUser}
         onOpenProfile={(uid) => navigate(`/users/${uid}`)}
       />
         {toast && (
@@ -1340,3 +1430,8 @@ function App() {
 }
 
 export default App;
+  const loadMoreFeed = async () => {
+    if (feedLoading || !feedHasMore) return;
+    const nextLimit = feedLimit + 20;
+    await refreshTweets({ limit: nextLimit });
+  };

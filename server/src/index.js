@@ -439,11 +439,13 @@ app.get("/api/tweets", asyncHandler(async (req, res) => {
     .map(([id, value]) => {
       const likesCount = likes[id] ? Object.keys(likes[id]).length : 0;
       const commentsCount = comments[id] ? Object.keys(comments[id]).length : 0;
+      const likedByUids = likes[id] ? Object.keys(likes[id]).slice(0, 3) : [];
       return {
         id,
         ...value,
         likesCount,
         likedByMe: Boolean(likes[id]?.[req.user.uid]),
+        likedByUids,
         commentsCount,
         rankScore: scoreTweet(value, likesCount, commentsCount),
       };
@@ -581,8 +583,36 @@ app.post("/api/tweets/:tweetId/like", asyncHandler(async (req, res) => {
 
   const likesSnap = await db.ref(`tweetLikes/${tweetId}`).get();
   const likesCount = likesSnap.exists() ? Object.keys(likesSnap.val()).length : 0;
+  const likedByUids = likesSnap.exists() ? Object.keys(likesSnap.val()).slice(0, 3) : [];
 
-  return res.json({ liked: !likedSnap.exists(), likesCount });
+  return res.json({ liked: !likedSnap.exists(), likesCount, likedByUids });
+}));
+
+app.get("/api/tweets/:tweetId/likes", asyncHandler(async (req, res) => {
+  const { tweetId } = req.params;
+  const [likesSnap, profilesSnap, followSnap] = await Promise.all([
+    db.ref(`tweetLikes/${tweetId}`).get(),
+    db.ref("profiles").get(),
+    db.ref(`userFollows/${req.user.uid}`).get(),
+  ]);
+  const likes = likesSnap.exists() ? likesSnap.val() : {};
+  const profiles = profilesSnap.exists() ? profilesSnap.val() : {};
+  const following = followSnap.exists() ? followSnap.val() : {};
+
+  const result = Object.keys(likes)
+    .map((uid) => {
+      const profile = profiles[uid] || {};
+      return {
+        uid,
+        nickname: profile.nickname || "",
+        photoURL: profile.photoURL || profile.photoUrl || "",
+        isFollowing: Boolean(following?.[uid]),
+      };
+    })
+    .filter((user) => user.nickname)
+    .sort((a, b) => (a.nickname || "").localeCompare(b.nickname || ""));
+
+  return res.json(result);
 }));
 
 app.get("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
@@ -643,6 +673,33 @@ app.post("/api/tweets/:tweetId/comments", asyncHandler(async (req, res) => {
     });
   }
   return res.status(201).json({ id: commentRef.key, ...comment, likesCount: 0, likedByMe: false });
+}));
+
+app.put("/api/tweets/:tweetId/comments/:commentId", asyncHandler(async (req, res) => {
+  const { tweetId, commentId } = req.params;
+  const text = sanitizeText(req.body?.text, 800);
+  if (text.length < 2) {
+    return res.status(400).json({ error: "Comment must be at least 2 characters" });
+  }
+
+  const commentRef = db.ref(`tweetComments/${tweetId}/${commentId}`);
+  const commentSnap = await commentRef.get();
+  if (!commentSnap.exists()) {
+    return res.status(404).json({ error: "Comment not found" });
+  }
+  const comment = commentSnap.val();
+  if (comment.authorUid !== req.user.uid) {
+    return res.status(403).json({ error: "You can edit only your own comment" });
+  }
+
+  const updated = { ...comment, text, updatedAt: nowIso() };
+  await commentRef.set(updated);
+
+  const likesSnap = await db.ref(`tweetCommentLikes/${tweetId}/${commentId}`).get();
+  const likesCount = likesSnap.exists() ? Object.keys(likesSnap.val()).length : 0;
+  const likedByMe = Boolean(likesSnap.val()?.[req.user.uid]);
+
+  return res.json({ id: commentId, ...updated, likesCount, likedByMe });
 }));
 
 app.post("/api/tweets/:tweetId/comments/:commentId/like", asyncHandler(async (req, res) => {
