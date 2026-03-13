@@ -203,7 +203,8 @@ h1, h2, h3, h4 { margin: 0; }
 }
 .row-form button:hover, .actions-row button:hover, .group-item button:hover, .reply-btn:hover { border-bottom-color: #fff; }
 
-.cards, .group-list, .messages-box, .user-list, .comment-box { display: grid; gap: 8px; }
+.cards, .group-list, .messages-box, .user-list, .comment-box { display: grid; gap: 8px; min-height: 0; overflow: auto; scrollbar-width: none; -ms-overflow-style: none; }
+.cards::-webkit-scrollbar, .group-list::-webkit-scrollbar, .messages-box::-webkit-scrollbar, .user-list::-webkit-scrollbar, .comment-box::-webkit-scrollbar { display: none; }
 .tweet-card, .group-item, .user-item, .admin-member-row { border: 1px solid #424549; background: var(--panel-2); border-radius: 8px; padding: 11px; max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; }
 .user-item { display: flex; align-items: center; gap: 10px; }
 .user-item-body { display: grid; gap: 2px; flex: 1; }
