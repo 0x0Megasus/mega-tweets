@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FaArrowDown,
   FaComments,
@@ -48,7 +48,7 @@ const NAME_COLORS = [
   "#86efac",
 ];
 
-export default function DmView({
+function DmView({
   isMobile,
   mobileDmPage,
   setMobileDmPage,
@@ -90,9 +90,9 @@ export default function DmView({
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [shouldFocusComposer, setShouldFocusComposer] = useState(false);
   const messageRefs = useRef({});
-  const profileByUid = Object.fromEntries(
+  const profileByUid = useMemo(() => Object.fromEntries(
     [profile, ...others].filter(Boolean).map((user) => [user.uid, user]),
-  );
+  ), [profile, others]);
   const lastMessageIdRef = useRef("");
   const lastTargetRef = useRef("");
   const [showScrollDown, setShowScrollDown] = useState(false);
@@ -168,10 +168,6 @@ export default function DmView({
     }, 0);
     return () => clearTimeout(timer);
   }, [shouldFocusComposer, dmTargetUid, isMobile, mobileDmPage]);
-
-  useEffect(() => {
-    if (!isMobile) setShowMediaOptions(false);
-  }, [isMobile, dmTargetUid]);
 
   const isReplyToMe = (m) => m.senderUid !== profile.uid && m.replyTo?.senderUid === profile.uid;
   const toDataUrl = (file, maxBytes, onDone, label) => {
@@ -266,6 +262,7 @@ export default function DmView({
                 onClick={() => {
                   setDmTargetUid(u.uid);
                   setDmReplyTo(null);
+                  setShowMediaOptions(false);
                   if (isMobile) setMobileDmPage("chat");
                 }}
               >
@@ -274,6 +271,10 @@ export default function DmView({
                   alt={u.nickname}
                   className="avatar"
                   onError={handleAvatarError}
+                  loading="lazy"
+                  decoding="async"
+                  width={22}
+                  height={22}
                 />
                 <span style={{ color: usernameColor(u.uid, u.nickname) }}>{u.nickname}</span>
                 {dmUnreadByUser[u.uid] ? <em className="dm-unread-badge">{dmUnreadByUser[u.uid]}</em> : null}
@@ -288,6 +289,7 @@ export default function DmView({
                 onClick={() => {
                   setDmTargetUid(u.uid);
                   setDmReplyTo(null);
+                  setShowMediaOptions(false);
                   if (isMobile) setMobileDmPage("chat");
                 }}
               >
@@ -296,6 +298,10 @@ export default function DmView({
                   alt={u.nickname}
                   className="avatar"
                   onError={handleAvatarError}
+                  loading="lazy"
+                  decoding="async"
+                  width={22}
+                  height={22}
                 />
                 <span style={{ color: usernameColor(u.uid, u.nickname) }}>{u.nickname}</span>
                 {dmUnreadByUser[u.uid] ? <em className="dm-unread-badge">{dmUnreadByUser[u.uid]}</em> : null}
@@ -343,6 +349,10 @@ export default function DmView({
                             alt={m.senderNickname}
                             className="avatar-msg"
                             onError={handleAvatarError}
+                            loading="lazy"
+                            decoding="async"
+                            width={22}
+                            height={22}
                           />
                         </button>
                         <div className={`msg-bubble ${m.imageData || m.audioData || m.videoData ? "has-media" : ""}`}>
@@ -365,12 +375,16 @@ export default function DmView({
                             <>
                               <img
                                 src={m.imageData}
-                                alt="Attachment"
+                                alt={`Direct message attachment from ${m.senderNickname || "user"}`}
                                 className="chat-media-image msg-media"
                                 onClick={() => {
                                   setPreviewImage(m.imageData);
                                   setPreviewZoom(1);
                                 }}
+                                loading="lazy"
+                                decoding="async"
+                                width={560}
+                                height={420}
                               />
                               <div className="media-actions">
                                 <a href={m.imageData} download={`image-${m.id || "dm"}.png`} className="media-download">Download</a>
@@ -442,7 +456,7 @@ export default function DmView({
               )}
               {(dmImageData || dmAudioData || dmVideoData) && (
                 <div className="attachment-preview-row">
-                  {dmImageData && <img src={dmImageData} alt="Selected attachment" className="chat-media-image preview" />}
+                  {dmImageData && <img src={dmImageData} alt="Selected direct message attachment preview" className="chat-media-image preview" loading="lazy" decoding="async" width={120} height={120} />}
                   {dmAudioData && (
                     <ChatAudioPlayer src={dmAudioData} className="is-preview" />
                   )}
@@ -636,8 +650,12 @@ export default function DmView({
                     </div>
                     <img
                       src={previewImage}
-                      alt="Preview"
+                      alt="Direct message attachment preview"
                       style={{ transform: `scale(${previewZoom})` }}
+                      loading="lazy"
+                      decoding="async"
+                      width={1000}
+                      height={700}
                       onWheel={(e) => {
                         e.preventDefault();
                         const delta = e.deltaY > 0 ? -0.15 : 0.15;
@@ -656,3 +674,5 @@ export default function DmView({
     </section>
   );
 }
+
+export default memo(DmView);

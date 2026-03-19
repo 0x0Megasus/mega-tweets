@@ -1,4 +1,6 @@
-export default function ProfileView({
+import { memo } from "react";
+
+function ProfileView({
   profile,
   firebaseUser,
   profileDraft,
@@ -33,8 +35,12 @@ export default function ProfileView({
         <div className="profile-box">
           <img
             src={profileDraft.photoURL || profile.photoURL || firebaseUser.photoURL || ""}
-            alt={profile.nickname}
+            alt={`${profile.nickname}'s profile photo`}
             className="avatar-lg"
+            loading="lazy"
+            decoding="async"
+            width={74}
+            height={74}
           />
           <p><strong>{profile.fullName}</strong></p>
           <p>@{profile.nickname}</p>
@@ -137,3 +143,5 @@ export default function ProfileView({
     </section>
   );
 }
+
+export default memo(ProfileView);

@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { Link } from "react-router-dom";
 
-export default function NotFoundPage() {
+function NotFoundPage() {
   return (
     <div className="center-screen">
       <div className="notfound-card">
@@ -12,3 +13,5 @@ export default function NotFoundPage() {
     </div>
   );
 }
+
+export default memo(NotFoundPage);

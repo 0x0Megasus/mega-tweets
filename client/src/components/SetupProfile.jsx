@@ -1,4 +1,6 @@
-export default function SetupProfile({
+import { memo } from "react";
+
+function SetupProfile({
   firebaseUser,
   setupNickname,
   setSetupNickname,
@@ -19,7 +21,7 @@ export default function SetupProfile({
   return (
     <div className="center-screen">
       <div className="setup-card">
-        <img src={firebaseUser.photoURL || ""} alt="Google profile" className="avatar-lg" />
+        <img src={firebaseUser.photoURL || ""} alt="Google account profile photo" className="avatar-lg" loading="lazy" decoding="async" width={74} height={74} />
         <h2>Complete Profile</h2>
         <input type="text" value={setupNickname} onChange={(e) => setSetupNickname(e.target.value)} placeholder="Your Name Or Nickname.." />
         <textarea value={setupBio} onChange={(e) => setSetupBio(e.target.value)} placeholder="bio" rows={3} />
@@ -41,3 +43,5 @@ export default function SetupProfile({
     </div>
   );
 }
+
+export default memo(SetupProfile);

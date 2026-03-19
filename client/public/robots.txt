@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://mega-novels-zhuu.vercel.app/sitemap.xml

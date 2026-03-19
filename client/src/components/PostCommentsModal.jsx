@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { FaComments, FaHeart, FaPaperPlane, FaReply, FaTimes } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
 import VideoPlayer from "./VideoPlayer";
@@ -9,7 +9,7 @@ const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
 
 const pickAvatar = (...values) => values.find((value) => typeof value === "string" && value.trim()) || FALLBACK_AVATAR;
 
-export default function PostCommentsModal({
+function PostCommentsModal({
   isOpen,
   onClose,
   tweet,
@@ -42,14 +42,6 @@ export default function PostCommentsModal({
       list.scrollTo({ top: list.scrollHeight, behavior: "smooth" });
     });
   }, [isOpen, comments.length]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setDraft("");
-    setReplyTo(null);
-    setEditingId("");
-    setEditingText("");
-  }, [isOpen, tweet?.id]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -87,7 +79,7 @@ export default function PostCommentsModal({
       return (
         <div key={comment.id} className={`comment-node depth-${Math.min(depth, 3)}`}>
           <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(comment.authorUid)}>
-            <img src={pickAvatar(comment.authorPhotoURL, comment.authorPhotoUrl)} alt={comment.authorNickname} className="avatar-sm" />
+            <img src={pickAvatar(comment.authorPhotoURL, comment.authorPhotoUrl)} alt={`${comment.authorNickname}'s avatar`} className="avatar-sm" loading="lazy" decoding="async" width={24} height={24} />
           </button>
           <div className="comment-node-body">
             <button type="button" className="profile-link-btn comment-author" onClick={() => onOpenProfile?.(comment.authorUid)}>
@@ -194,14 +186,14 @@ export default function PostCommentsModal({
         <div className="comments-modal-body">
           <article className="comments-focus-post">
             <button type="button" className="author-row author-btn" onClick={() => onOpenProfile?.(tweet.authorUid)}>
-              <img src={pickAvatar(tweet.authorPhotoURL, tweet.authorPhotoUrl)} alt={tweet.authorNickname} className="avatar" />
+              <img src={pickAvatar(tweet.authorPhotoURL, tweet.authorPhotoUrl)} alt={`${tweet.authorNickname}'s avatar`} className="avatar" loading="lazy" decoding="async" width={34} height={34} />
               <div>
                 <strong>{tweet.authorNickname}</strong>
                 <small> {timeAgo(tweet.createdAt)}</small>
               </div>
             </button>
             {Boolean(tweet.content) && <p className={containsArabic(tweet.content) ? "arabic-text" : ""}>{tweet.content}</p>}
-            {tweet.imageData && <img src={tweet.imageData} alt="Tweet media" className="feed-media-image" />}
+            {tweet.imageData && <img src={tweet.imageData} alt={`Tweet media by ${tweet.authorNickname || "user"}`} className="feed-media-image" loading="lazy" decoding="async" width={900} height={506} />}
             {tweet.audioData && <ChatAudioPlayer src={tweet.audioData} className="feed-media-audio" />}
             {tweet.videoData && <VideoPlayer src={tweet.videoData} className="feed-media-video" />}
           </article>
@@ -245,3 +237,5 @@ export default function PostCommentsModal({
     </div>
   );
 }
+
+export default memo(PostCommentsModal);

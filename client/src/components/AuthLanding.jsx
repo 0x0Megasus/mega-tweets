@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { FaGoogle } from "react-icons/fa";
 
-export default function AuthLanding({ login, loginLoading, error }) {
+function AuthLanding({ login, loginLoading, error }) {
   return (
     <div className="landing">
       <div className="landing-card">
@@ -16,3 +17,5 @@ export default function AuthLanding({ login, loginLoading, error }) {
     </div>
   );
 }
+
+export default memo(AuthLanding);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   FaArrowDown,
   FaComments,
@@ -35,7 +35,7 @@ const extensionFromDataUrl = (dataUrl, fallback = "bin") => {
   return ext || fallback;
 };
 
-export default function GroupsView(props) {
+function GroupsView(props) {
   const {
     isMobile,
     mobileGroupPage,
@@ -279,10 +279,6 @@ export default function GroupsView(props) {
   }, [shouldFocusComposer, selectedGroupData?.id, selectedGroupData?.joined, isMobile, mobileGroupPage]);
 
   useEffect(() => {
-    if (!isMobile) setShowMediaOptions(false);
-  }, [isMobile, selectedGroup]);
-
-  useEffect(() => {
     setShowGroupMembers(false);
   }, [selectedGroup, setShowGroupMembers]);
 
@@ -297,6 +293,10 @@ export default function GroupsView(props) {
                 alt={m.nickname}
                 className="avatar-member"
                 onError={handleAvatarError}
+                loading="lazy"
+                decoding="async"
+                width={24}
+                height={24}
               />
               <div>
                 <strong>{m.nickname}</strong>
@@ -364,6 +364,7 @@ export default function GroupsView(props) {
                 <div
                   onClick={() => {
                     setSelectedGroup(g.id);
+                    setShowMediaOptions(false);
                     if (isMobile) setMobileGroupPage("chat");
                   }}
                 >
@@ -473,6 +474,10 @@ export default function GroupsView(props) {
                               alt={m.senderNickname}
                               className="avatar-msg"
                               onError={handleAvatarError}
+                              loading="lazy"
+                              decoding="async"
+                              width={22}
+                              height={22}
                             />
                           </button>
                           <div className={`msg-bubble ${m.imageData || m.audioData || m.videoData ? "has-media" : ""}`}>
@@ -495,9 +500,13 @@ export default function GroupsView(props) {
                               <>
                                 <img
                                   src={m.imageData}
-                                  alt="Attachment"
+                                  alt={`Group attachment from ${m.senderNickname || "user"}`}
                                   className="chat-media-image msg-media"
                                   onClick={() => setPreviewImage(m.imageData)}
+                                  loading="lazy"
+                                  decoding="async"
+                                  width={560}
+                                  height={420}
                                 />
                                 <div className="media-actions">
                                   <a href={m.imageData} download={`image-${m.id || "group"}.png`} className="media-download">Download</a>
@@ -560,7 +569,7 @@ export default function GroupsView(props) {
                 )}
                 {(groupImageData || groupAudioData || groupVideoData) && (
                   <div className="attachment-preview-row">
-                    {groupImageData && <img src={groupImageData} alt="Selected attachment" className="chat-media-image preview" />}
+                    {groupImageData && <img src={groupImageData} alt="Selected group attachment preview" className="chat-media-image preview" loading="lazy" decoding="async" width={120} height={120} />}
                     {groupAudioData && (
                       <ChatAudioPlayer src={groupAudioData} className="is-preview" />
                     )}
@@ -737,7 +746,7 @@ export default function GroupsView(props) {
                       <button type="button" className="lightbox-close" onClick={() => setPreviewImage("")}>
                         <FaTimes />
                       </button>
-                      <img src={previewImage} alt="Preview" />
+                      <img src={previewImage} alt="Group attachment preview" loading="lazy" decoding="async" width={1000} height={700} />
                     </div>
                   </div>
                 )}
@@ -764,3 +773,5 @@ export default function GroupsView(props) {
     </section>
   );
 }
+
+export default memo(GroupsView);

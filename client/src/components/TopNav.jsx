@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { FaBell, FaComments, FaFeatherAlt, FaHashtag, FaUser, FaUsers, FaUserFriends } from "react-icons/fa";
 
-export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, badgeCounts = {} }) {
+function TopNav({ tabs, tab, setTab, profile, firebaseUser, badgeCounts = {} }) {
   const tabMeta = {
     feed: { label: "Tweets", icon: <FaHashtag /> },
     groups: { label: "Groups", icon: <FaUsers /> },
@@ -23,9 +24,11 @@ export default function TopNav({ tabs, tab, setTab, profile, firebaseUser, badge
         ))}
       </div>
       <div className="user-pill">
-        <img src={profile.photoURL || firebaseUser.photoURL || ""} alt={profile.nickname} className="avatar" />
+        <img src={profile.photoURL || firebaseUser.photoURL || ""} alt={`${profile.nickname}'s avatar`} className="avatar" loading="lazy" decoding="async" width={34} height={34} />
         <span>{profile.nickname}</span>
       </div>
     </nav>
   );
 }
+
+export default memo(TopNav);

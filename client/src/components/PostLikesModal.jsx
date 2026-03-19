@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { FaTimes, FaUserPlus, FaUserMinus, FaEnvelope, FaUser } from "react-icons/fa";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
@@ -6,7 +7,7 @@ const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
 
 const pickAvatar = (...values) => values.find((value) => typeof value === "string" && value.trim()) || FALLBACK_AVATAR;
 
-export default function PostLikesModal({
+function PostLikesModal({
   isOpen,
   onClose,
   likes,
@@ -40,7 +41,7 @@ export default function PostLikesModal({
                 return (
                   <div key={user.uid} className="like-user-item">
                     <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(user.uid)}>
-                      <img src={pickAvatar(user.photoURL)} alt={user.nickname} className="avatar-sm" />
+                      <img src={pickAvatar(user.photoURL)} alt={`${user.nickname}'s avatar`} className="avatar-sm" loading="lazy" decoding="async" width={24} height={24} />
                     </button>
                     <div className="like-user-info">
                       <strong>{isMe ? `${user.nickname} (You)` : user.nickname}</strong>
@@ -70,3 +71,5 @@ export default function PostLikesModal({
     </div>
   );
 }
+
+export default memo(PostLikesModal);

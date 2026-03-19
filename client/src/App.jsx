@@ -13,6 +13,7 @@ import { FirebaseAuthentication } from "@capacitor-firebase/authentication";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { auth, googleProvider } from "./firebase";
 import { API_BASE_URL, api } from "./api";
+import SeoMeta from "./components/SeoMeta";
 import "./App.css";
 const TopNav = lazy(() => import("./components/TopNav"));
 const AuthLanding = lazy(() => import("./components/AuthLanding"));
@@ -31,7 +32,7 @@ const PostLikesModal = lazy(() => import("./components/PostLikesModal"));
 const NotFoundPage = lazy(() => import("./components/NotFoundPage"));
 
 const TABS = ["feed", "groups", "dm", "people", "notifications", "profile"];
-export const INTEREST_OPTIONS = [
+const INTEREST_OPTIONS = [
   "technology",
   "gaming",
   "sports",
@@ -56,6 +57,10 @@ const notifText = (n) => {
   if (n.type === "dm_reply") return `${n.actorNickname || "Someone"} replied in DM`;
   return "New activity";
 };
+const SITE_URL = import.meta.env.VITE_SITE_URL || "https://mega-novels-zhuu.vercel.app";
+const DEFAULT_OG_IMAGE = `${SITE_URL}/app-icon-512.png`;
+const PageLoading = () => <div className="center-screen loading-screen"><div className="spinner" /></div>;
+const LazyRoute = ({ children }) => <Suspense fallback={<PageLoading />}>{children}</Suspense>;
 
 function App() {
   const navigate = useNavigate();
@@ -63,7 +68,7 @@ function App() {
   const [firebaseUser, setFirebaseUser] = useState(null);
   const [token, setToken] = useState("");
   const [authLoading, setAuthLoading] = useState(true);
-  const [bootLoading, setBootLoading] = useState(false);
+  const [, setBootLoading] = useState(false);
   const [bootHydrated, setBootHydrated] = useState(false);
   const [pendingCount, setPendingCount] = useState(0);
   const [loginLoading, setLoginLoading] = useState(false);
@@ -235,6 +240,98 @@ function App() {
     () => ({ feed: unseenFeedCount, dm: dmUnreadTotal, notifications: unreadNotificationsCount }),
     [unseenFeedCount, dmUnreadTotal, unreadNotificationsCount],
   );
+  const pageMeta = useMemo(() => {
+    const pathname = location.pathname || "/";
+    const firstSegment = pathname.split("/")[1] || "";
+    const defaultMeta = {
+      title: "Mega Tweets",
+      description: "Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
+      robots: "index,follow",
+      ogImage: DEFAULT_OG_IMAGE,
+      path: pathname,
+    };
+
+    if (!firebaseUser) {
+      return {
+        ...defaultMeta,
+        title: "Sign In | Mega Tweets",
+        description: "Sign in to Mega Tweets to post, message, and follow your network.",
+        robots: "index,follow",
+      };
+    }
+    if (!profile?.fullName || !profile?.nickname || !(profile?.interests || []).length) {
+      return {
+        ...defaultMeta,
+        title: "Complete Profile | Mega Tweets",
+        description: "Complete your profile setup to start using Mega Tweets.",
+        robots: "noindex,nofollow",
+      };
+    }
+    if (pathname.startsWith("/users/")) {
+      const uid = pathname.split("/")[2] || "";
+      const viewedUser = uid === profile?.uid ? profile : users.find((u) => u.uid === uid);
+      const nickname = viewedUser?.nickname || "User";
+      return {
+        ...defaultMeta,
+        title: `${nickname} | Mega Tweets`,
+        description: `View ${nickname}'s profile and tweets on Mega Tweets.`,
+        ogImage: viewedUser?.photoURL || viewedUser?.photoUrl || DEFAULT_OG_IMAGE,
+      };
+    }
+    if (firstSegment === "feed") {
+      return {
+        ...defaultMeta,
+        title: "Feed | Mega Tweets",
+        description: "See the latest tweets and media from your network.",
+      };
+    }
+    if (firstSegment === "people") {
+      return {
+        ...defaultMeta,
+        title: "People | Mega Tweets",
+        description: "Discover and follow people on Mega Tweets.",
+      };
+    }
+    if (firstSegment === "notifications") {
+      return {
+        ...defaultMeta,
+        title: "Notifications | Mega Tweets",
+        description: "Track likes, comments, and message activity.",
+        robots: "noindex,nofollow",
+      };
+    }
+    if (firstSegment === "groups") {
+      return {
+        ...defaultMeta,
+        title: "Groups | Mega Tweets",
+        description: "Chat with your communities in Mega Tweets groups.",
+        robots: "noindex,nofollow",
+      };
+    }
+    if (firstSegment === "dm") {
+      return {
+        ...defaultMeta,
+        title: "Direct Messages | Mega Tweets",
+        description: "Private conversations with people you follow.",
+        robots: "noindex,nofollow",
+      };
+    }
+    if (firstSegment === "profile") {
+      return {
+        ...defaultMeta,
+        title: "My Profile | Mega Tweets",
+        description: "Manage your Mega Tweets profile, theme, and preferences.",
+        robots: "noindex,nofollow",
+        ogImage: profile?.photoURL || profile?.photoUrl || DEFAULT_OG_IMAGE,
+      };
+    }
+    return {
+      ...defaultMeta,
+      title: "Page Not Found | Mega Tweets",
+      description: "The page you requested could not be found on Mega Tweets.",
+      robots: "noindex,nofollow",
+    };
+  }, [location.pathname, firebaseUser, profile, users]);
 
   useEffect(() => {
     if (!profile?.uid) { setSeenPostIds({}); return; }
@@ -519,6 +616,11 @@ function App() {
     } finally {
       setFeedLoading(false);
     }
+  };
+  const loadMoreFeed = async () => {
+    if (feedLoading || !feedHasMore) return;
+    const nextLimit = feedLimit + 20;
+    await refreshTweets({ limit: nextLimit });
   };
 
   useEffect(() => {
@@ -901,7 +1003,9 @@ function App() {
 
   const logout = async () => withLoad(async () => {
     if (Capacitor.isNativePlatform()) {
-      try { await FirebaseAuthentication.signOut(); } catch {}
+      try { await FirebaseAuthentication.signOut(); } catch {
+        // ignore native logout errors and continue firebase signOut
+      }
     }
     await signOut(auth);
   });
@@ -1331,17 +1435,44 @@ function App() {
     toMark.forEach((n) => markRead(n.id));
   }, [dmTargetUid, isDmChatVisible, notifications]);
 
-  if (checking) return <div className="center-screen loading-screen"><div className="spinner" /></div>;
+  if (checking) {
+    return (
+      <>
+        <SeoMeta
+          title={pageMeta.title}
+          description={pageMeta.description}
+          robots={pageMeta.robots}
+          ogImage={pageMeta.ogImage}
+          path={pageMeta.path}
+        />
+        <PageLoading />
+      </>
+    );
+  }
   if (!firebaseUser) {
     return (
-      <Suspense fallback={<div className="center-screen loading-screen"><div className="spinner" /></div>}>
+      <Suspense fallback={<PageLoading />}>
+        <SeoMeta
+          title={pageMeta.title}
+          description={pageMeta.description}
+          robots={pageMeta.robots}
+          ogImage={pageMeta.ogImage}
+          path={pageMeta.path}
+        />
         <AuthLanding login={login} loginLoading={loginLoading} error={error} />
       </Suspense>
     );
   }
   if (!profile?.fullName || !profile?.nickname || !(profile?.interests || []).length) {
     return (
-      <Suspense fallback={<div className="center-screen loading-screen"><div className="spinner" /></div>}>
+      <Suspense fallback={<PageLoading />}>
+        <SeoMeta
+          title={pageMeta.title}
+          description={pageMeta.description}
+          robots={pageMeta.robots}
+          ogImage={pageMeta.ogImage}
+          path={pageMeta.path}
+        />
         <SetupProfile
           firebaseUser={firebaseUser}
           setupNickname={setupNickname}
@@ -1359,20 +1490,27 @@ function App() {
   }
 
   return (
-    <Suspense fallback={<div className="center-screen loading-screen"><div className="spinner" /></div>}>
+    <Suspense fallback={<PageLoading />}>
+      <SeoMeta
+        title={pageMeta.title}
+        description={pageMeta.description}
+        robots={pageMeta.robots}
+        ogImage={pageMeta.ogImage}
+        path={pageMeta.path}
+      />
       <div className="app-shell">
         <TopNav tabs={TABS} tab={currentTab} setTab={(nextTab) => navigate(`/${nextTab}`)} profile={profile} firebaseUser={firebaseUser} badgeCounts={badgeCounts} />
 
       <Routes>
         <Route path="/" element={<Navigate to="/feed" replace />} />
-        <Route path="/feed" element={<FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} openLikesModal={openLikesModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} feedLoadedOnce={feedLoadedOnce} feedHasMore={feedHasMore} onLoadMore={loadMoreFeed} />} />
-        <Route path="/groups" element={<GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} />} />
-        <Route path="/dm" element={<DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmUnreadByUser={dmUnreadByUser} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} />} />
-        <Route path="/people" element={<PeopleView users={users} usersLoading={usersLoading} usersLoadedOnce={usersLoadedOnce} profile={profile} onToggleFollow={toggleFollowUser} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onOpenDm={openDmWithUser} />} />
-        <Route path="/notifications" element={<NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} notificationOpeningId={notificationOpeningId} />} />
-        <Route path="/profile" element={<ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} theme={theme} setTheme={setTheme} onLogout={logout} interestOptions={INTEREST_OPTIONS} />} />
-        <Route path="/users/:uid" element={<UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} openLikesModal={openLikesModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} onOpenDm={openDmWithUser} focusedPostId={focusedPostId} />} />
-      <Route path="*" element={<NotFoundPage />} />
+        <Route path="/feed" element={<LazyRoute><FeedView tweets={tweets} users={users} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} openLikesModal={openLikesModal} profile={profile} startEdit={startEdit} delTweet={delTweet} onOpenPublish={() => setShowPublishModal(true)} focusedPostId={focusedPostId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} feedLoading={feedLoading} feedLoadedOnce={feedLoadedOnce} feedHasMore={feedHasMore} onLoadMore={loadMoreFeed} /></LazyRoute>} />
+        <Route path="/groups" element={<LazyRoute><GroupsView isMobile={isMobile} mobileGroupPage={mobileGroupPage} setMobileGroupPage={setMobileGroupPage} showGroupMembers={showGroupMembers} setShowGroupMembers={setShowGroupMembers} groupMessagesLoading={groupMessagesLoading} createGroup={createGroup} groupName={groupName} setGroupName={setGroupName} groupDesc={groupDesc} setGroupDesc={setGroupDesc} joinByCode={joinByCode} inviteCodeInput={inviteCodeInput} setInviteCodeInput={setInviteCodeInput} groups={groups} selectedGroup={selectedGroup} setSelectedGroup={setSelectedGroup} joinOrLeave={joinOrLeave} selectedGroupData={selectedGroupData} groupMessages={groupMessages} profile={profile} timeAgo={timeAgo} setGroupReplyTo={setGroupReplyTo} groupReplyTo={groupReplyTo} groupDraft={groupDraft} setGroupDraft={setGroupDraft} sendGroup={sendGroup} groupSending={groupSending} groupImageData={groupImageData} setGroupImageData={setGroupImageData} groupAudioData={groupAudioData} setGroupAudioData={setGroupAudioData} groupVideoData={groupVideoData} setGroupVideoData={setGroupVideoData} groupMembers={groupMembers} promote={promote} removeMember={removeMember} focusedGroupMessageId={focusedGroupMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} clearGroupMessages={clearGroupMessages} toggleGroupAutoDelete={toggleGroupAutoDelete} groupSettingsSaving={groupSettingsSaving} /></LazyRoute>} />
+        <Route path="/dm" element={<LazyRoute><DmView isMobile={isMobile} mobileDmPage={mobileDmPage} setMobileDmPage={setMobileDmPage} dmMessagesLoading={dmMessagesLoading} others={others} dmUnreadByUser={dmUnreadByUser} dmTargetUid={dmTargetUid} setDmTargetUid={setDmTargetUid} setDmReplyTo={setDmReplyTo} dmMessages={dmMessages} profile={profile} timeAgo={timeAgo} dmReplyTo={dmReplyTo} dmDraft={dmDraft} setDmDraft={setDmDraft} sendDm={sendDm} dmSending={dmSending} dmImageData={dmImageData} setDmImageData={setDmImageData} dmAudioData={dmAudioData} setDmAudioData={setDmAudioData} dmVideoData={dmVideoData} setDmVideoData={setDmVideoData} focusedDmMessageId={focusedDmMessageId} onOpenProfile={(uid) => navigate(`/users/${uid}`)} /></LazyRoute>} />
+        <Route path="/people" element={<LazyRoute><PeopleView users={users} usersLoading={usersLoading} usersLoadedOnce={usersLoadedOnce} profile={profile} onToggleFollow={toggleFollowUser} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onOpenDm={openDmWithUser} /></LazyRoute>} />
+        <Route path="/notifications" element={<LazyRoute><NotificationsView notifications={unreadNotifications} notifText={notifText} timeAgo={timeAgo} openNotification={openNotification} clearNotifications={clearNotifications} notificationOpeningId={notificationOpeningId} /></LazyRoute>} />
+        <Route path="/profile" element={<LazyRoute><ProfileView profile={profile} firebaseUser={firebaseUser} profileDraft={profileDraft} setProfileDraft={setProfileDraft} saveProfile={saveProfile} soundSettings={soundSettings} setSoundSettings={setSoundSettings} theme={theme} setTheme={setTheme} onLogout={logout} interestOptions={INTEREST_OPTIONS} /></LazyRoute>} />
+        <Route path="/users/:uid" element={<LazyRoute><UserProfileView profile={profile} users={users} tweets={tweets} editingId={editingId} editContent={editContent} setEditContent={setEditContent} saveEdit={saveEdit} setEditingId={setEditingId} timeAgo={timeAgo} containsArabic={containsArabic} likeTweet={likeTweet} likeLoadingId={likeLoadingId} commentLoadingId={commentLoadingId} openCommentsModal={openCommentsModal} openLikesModal={openLikesModal} startEdit={startEdit} delTweet={delTweet} onOpenProfile={(uid) => navigate(`/users/${uid}`)} onToggleFollow={toggleFollowUser} onOpenDm={openDmWithUser} focusedPostId={focusedPostId} /></LazyRoute>} />
+      <Route path="*" element={<LazyRoute><NotFoundPage /></LazyRoute>} />
       </Routes>
 
       <PublishTweetModal
@@ -1393,6 +1531,7 @@ function App() {
 
       {pendingLeaveGroupId && <ConfirmLeaveModal onConfirm={confirmLeaveDelete} onCancel={() => setPendingLeaveGroupId("")} />}
       <PostCommentsModal
+        key={`${commentsModalTweetId || "none"}:${Boolean(commentsModalTweetId && activeCommentsTweet)}`}
         isOpen={Boolean(commentsModalTweetId && activeCommentsTweet)}
         onClose={() => setCommentsModalTweetId("")}
         tweet={activeCommentsTweet}
@@ -1430,8 +1569,3 @@ function App() {
 }
 
 export default App;
-  const loadMoreFeed = async () => {
-    if (feedLoading || !feedHasMore) return;
-    const nextLimit = feedLimit + 20;
-    await refreshTweets({ limit: nextLimit });
-  };

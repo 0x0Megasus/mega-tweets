@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import FeedView from "./FeedView";
 
@@ -8,7 +8,7 @@ const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
 
 const pickAvatar = (...values) => values.find((value) => typeof value === "string" && value.trim()) || FALLBACK_AVATAR;
 
-export default function UserProfileView({
+function UserProfileView({
   profile,
   users,
   tweets,
@@ -59,7 +59,7 @@ export default function UserProfileView({
     <section className="feed-layout-full">
       <article className="panel profile-summary-panel">
         <div className="profile-box">
-          <img src={pickAvatar(viewed.photoURL, viewed.photoUrl)} alt={viewed.nickname} className="avatar-lg" />
+          <img src={pickAvatar(viewed.photoURL, viewed.photoUrl)} alt={`${viewed.nickname}'s profile photo`} className="avatar-lg" loading="lazy" decoding="async" width={74} height={74} />
           <p><strong>{isSelf ? "You" : (viewed.fullName || viewed.nickname || "User")}</strong></p>
           <p>@{isSelf ? "you" : (viewed.nickname || "unknown")}</p>
           <p>{viewed.bio || "No bio"}</p>
@@ -104,3 +104,5 @@ export default function UserProfileView({
     </section>
   );
 }
+
+export default memo(UserProfileView);

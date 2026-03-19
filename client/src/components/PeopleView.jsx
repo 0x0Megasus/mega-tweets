@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { FaComments, FaUsers } from "react-icons/fa";
 
 const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
@@ -7,7 +7,7 @@ const FALLBACK_AVATAR = `data:image/svg+xml;utf8,${encodeURIComponent(
 
 const pickAvatar = (...values) => values.find((value) => typeof value === "string" && value.trim()) || FALLBACK_AVATAR;
 
-export default function PeopleView({ users = [], usersLoading = false, usersLoadedOnce = false, profile, onToggleFollow, onOpenProfile, onOpenDm }) {
+function PeopleView({ users = [], usersLoading = false, usersLoadedOnce = false, profile, onToggleFollow, onOpenProfile, onOpenDm }) {
   const list = useMemo(
     () => users.filter((u) => u.uid && u.uid !== profile?.uid && u.nickname),
     [users, profile?.uid],
@@ -18,7 +18,7 @@ export default function PeopleView({ users = [], usersLoading = false, usersLoad
   const renderUser = (u) => (
     <div key={u.uid} className="user-item">
       <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(u.uid)}>
-        <img src={pickAvatar(u.photoURL, u.photoUrl)} alt={u.nickname} className="avatar" />
+        <img src={pickAvatar(u.photoURL, u.photoUrl)} alt={`${u.nickname}'s profile photo`} className="avatar" loading="lazy" decoding="async" width={34} height={34} />
       </button>
       <div className="user-item-body">
         <button type="button" className="profile-link-btn" onClick={() => onOpenProfile?.(u.uid)}>
@@ -64,3 +64,5 @@ export default function PeopleView({ users = [], usersLoading = false, usersLoad
     </section>
   );
 }
+
+export default memo(PeopleView);

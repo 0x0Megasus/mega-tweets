@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FaComments, FaEllipsisH, FaGlobe, FaHeart, FaPlus } from "react-icons/fa";
 import ChatAudioPlayer from "./ChatAudioPlayer";
 import VideoPlayer from "./VideoPlayer";
@@ -34,7 +34,7 @@ export default function FeedView(props) {
     onLoadMore,
     openLikesModal,
   } = props;
-  const userByUid = Object.fromEntries((users || []).map((user) => [user.uid, user]));
+  const userByUid = useMemo(() => Object.fromEntries((users || []).map((user) => [user.uid, user])), [users]);
   const postRefs = useRef({});
   const sentinelRef = useRef(null);
   const [openMenuId, setOpenMenuId] = useState("");
@@ -151,6 +151,10 @@ export default function FeedView(props) {
                             alt={n.authorNickname}
                             className="avatar"
                             onError={handleAvatarError}
+                            loading="lazy"
+                            decoding="async"
+                            width={34}
+                            height={34}
                           />
                           <div>
                             <strong>{n.authorNickname}</strong>
@@ -205,7 +209,7 @@ export default function FeedView(props) {
                         )}
                       </div>
                       {Boolean(n.content) && <p className={containsArabic(n.content) ? "arabic-text" : ""}>{n.content}</p>}
-                      {n.imageData && <img src={n.imageData} alt="Tweet media" className="feed-media-image" />}
+                      {n.imageData && <img src={n.imageData} alt={`Tweet media by ${n.authorNickname || "user"}`} className="feed-media-image" loading="lazy" decoding="async" width={900} height={506} />}
                       {n.audioData && <ChatAudioPlayer src={n.audioData} className="feed-media-audio" />}
                       {n.videoData && (
                         <div className="feed-media-video-wrap">
