@@ -6,7 +6,12 @@ import './index.css'
 import App from './App.jsx'
 import { registerSW } from 'virtual:pwa-register'
 
-registerSW({ immediate: true })
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    updateSW(true)
+  },
+})
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

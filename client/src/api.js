@@ -4,13 +4,17 @@ const isNative = Capacitor.isNativePlatform();
 const isWeb = !isNative && typeof window !== "undefined";
 const isVercelHost = isWeb && window.location.hostname.endsWith(".vercel.app");
 const forceSameOriginApi = (import.meta.env.VITE_FORCE_SAME_ORIGIN_API || "").toLowerCase() === "true";
-const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").trim();
+const configuredApiBaseUrl = (import.meta.env.VITE_API_BASE_URL || "").trim().replace(/\/+$/, "");
+const defaultVercelApiBaseUrl = "https://mega-novels.vercel.app";
 
-// On Vercel web deployments, default to same-origin API calls so the frontend
-// can proxy /api via rewrites and avoid browser CORS/preflight issues.
-export const API_BASE_URL = (isWeb && (forceSameOriginApi || isVercelHost))
+// Resolution order:
+// 1) explicit VITE_API_BASE_URL (always wins)
+// 2) on Vercel web, default to known API origin unless same-origin is forced
+// 3) local fallback
+const inferredVercelApiBaseUrl = isWeb && isVercelHost ? defaultVercelApiBaseUrl : "";
+export const API_BASE_URL = forceSameOriginApi
   ? ""
-  : (configuredApiBaseUrl || "http://localhost:4000");
+  : (configuredApiBaseUrl || inferredVercelApiBaseUrl || "http://localhost:4000");
 
 async function request(path, token, options = {}) {
   const url = `${API_BASE_URL}${path}`;
