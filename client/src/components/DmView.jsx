@@ -86,6 +86,7 @@ export default function DmView({
   const [isRecording, setIsRecording] = useState(false);
   const [recordingSeconds, setRecordingSeconds] = useState(0);
   const [previewImage, setPreviewImage] = useState("");
+  const [previewZoom, setPreviewZoom] = useState(1);
   const [showMediaOptions, setShowMediaOptions] = useState(false);
   const [shouldFocusComposer, setShouldFocusComposer] = useState(false);
   const messageRefs = useRef({});
@@ -366,11 +367,23 @@ export default function DmView({
                                 src={m.imageData}
                                 alt="Attachment"
                                 className="chat-media-image msg-media"
-                                onClick={() => setPreviewImage(m.imageData)}
+                                onClick={() => {
+                                  setPreviewImage(m.imageData);
+                                  setPreviewZoom(1);
+                                }}
                               />
                               <div className="media-actions">
                                 <a href={m.imageData} download={`image-${m.id || "dm"}.png`} className="media-download">Download</a>
-                                <button type="button" className="media-open" onClick={() => setPreviewImage(m.imageData)}>Open</button>
+                                <button
+                                  type="button"
+                                  className="media-open"
+                                  onClick={() => {
+                                    setPreviewImage(m.imageData);
+                                    setPreviewZoom(1);
+                                  }}
+                                >
+                                  Open
+                                </button>
                               </div>
                             </>
                           )}
@@ -604,7 +617,33 @@ export default function DmView({
                     <button type="button" className="lightbox-close" onClick={() => setPreviewImage("")}>
                       <FaTimes />
                     </button>
-                    <img src={previewImage} alt="Preview" />
+                    <div className="lightbox-controls">
+                      <button
+                        type="button"
+                        className="lightbox-zoom-btn"
+                        onClick={() => setPreviewZoom((z) => Math.max(1, +(z - 0.25).toFixed(2)))}
+                      >
+                        −
+                      </button>
+                      <span className="lightbox-zoom-label">{Math.round(previewZoom * 100)}%</span>
+                      <button
+                        type="button"
+                        className="lightbox-zoom-btn"
+                        onClick={() => setPreviewZoom((z) => Math.min(4, +(z + 0.25).toFixed(2)))}
+                      >
+                        +
+                      </button>
+                    </div>
+                    <img
+                      src={previewImage}
+                      alt="Preview"
+                      style={{ transform: `scale(${previewZoom})` }}
+                      onWheel={(e) => {
+                        e.preventDefault();
+                        const delta = e.deltaY > 0 ? -0.15 : 0.15;
+                        setPreviewZoom((z) => Math.min(4, Math.max(1, +(z + delta).toFixed(2))));
+                      }}
+                    />
                   </div>
                 </div>
               )}

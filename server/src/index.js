@@ -1,6 +1,8 @@
 import dotenv from "dotenv";
 import express from "express";
 import cors from "cors";
+import helmet from "helmet";
+import { rateLimit } from "express-rate-limit";
 
 dotenv.config({ path: new URL("../.env", import.meta.url) });
 const { auth, db } = await import("./firebaseAdmin.js");
@@ -8,6 +10,15 @@ const { auth, db } = await import("./firebaseAdmin.js");
 const app = express();
 const port = Number(process.env.PORT || 4000);
 const appName = "Mega Tweets API";
+const trustProxyHops = Number(process.env.TRUST_PROXY_HOPS || 1);
+
+app.set("trust proxy", Number.isFinite(trustProxyHops) ? trustProxyHops : 1);
+app.disable("x-powered-by");
+
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginEmbedderPolicy: false,
+}));
 
 const allowedOrigins = new Set(
   (process.env.CORS_ORIGIN || "")
@@ -20,16 +31,59 @@ const allowedOrigins = new Set(
   allowedOrigins.add(origin);
 });
 
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
-      return callback(new Error("CORS blocked for origin: " + origin));
-    },
-  }),
-);
-;
+const allowVercelPreviewOrigins = (process.env.CORS_ALLOW_VERCEL_PREVIEWS || "true").toLowerCase() === "true";
+const allowedOriginPatterns = [];
+
+if (allowVercelPreviewOrigins) {
+  allowedOriginPatterns.push(/^https:\/\/mega-novels(?:-[a-z0-9-]+)?\.vercel\.app$/i);
+}
+
+(process.env.CORS_ORIGIN_REGEX || "")
+  .split(",")
+  .map((pattern) => pattern.trim())
+  .filter(Boolean)
+  .forEach((pattern) => {
+    try {
+      allowedOriginPatterns.push(new RegExp(pattern, "i"));
+    } catch (err) {
+      console.warn(`[${appName}] Invalid CORS_ORIGIN_REGEX pattern ignored:`, pattern);
+    }
+  });
+
+function isAllowedOrigin(origin) {
+  if (!origin) return true;
+  if (allowedOrigins.has(origin)) return true;
+  return allowedOriginPatterns.some((pattern) => pattern.test(origin));
+}
+
+const corsOptions = {
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) return callback(null, true);
+    return callback(new Error("CORS blocked for origin: " + origin));
+  },
+  methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Authorization", "Content-Type"],
+  optionsSuccessStatus: 204,
+  maxAge: 86_400,
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
+
 app.use(express.json({ limit: "6mb" }));
+app.use(express.urlencoded({ extended: false, limit: "6mb" }));
+
+const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
+const rateLimitMax = Number(process.env.RATE_LIMIT_MAX || 300);
+
+app.use("/api", rateLimit({
+  windowMs: Number.isFinite(rateLimitWindowMs) ? rateLimitWindowMs : 15 * 60 * 1000,
+  max: Number.isFinite(rateLimitMax) ? rateLimitMax : 300,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skip: (req) => req.path === "/health",
+  message: { error: "Too many requests. Try again later." },
+}));
 
 const nowIso = () => new Date().toISOString();
 const asyncHandler = (fn) => (req, res, next) =>
@@ -139,6 +193,11 @@ async function isGroupAdmin(groupId, uid) {
   return snapshot.exists();
 }
 
+async function groupExists(groupId) {
+  const snapshot = await db.ref(`groups/${groupId}`).get();
+  return snapshot.exists();
+}
+
 async function pruneOldGroupMessages(groupId, maxAgeMs = 24 * 60 * 60 * 1000) {
   const snapshot = await db.ref(`groupMessages/${groupId}`).get();
   if (!snapshot.exists()) return;
@@ -201,6 +260,9 @@ async function syncUserPhotoAcrossContent(uid, photoURL) {
 }
 
 const authRequired = asyncHandler(async (req, res, next) => {
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(204);
+  }
   try {
     const header = req.headers.authorization || "";
     const token = header.startsWith("Bearer ") ? header.slice(7) : null;
@@ -790,6 +852,9 @@ app.post("/api/groups", asyncHandler(async (req, res) => {
 
 app.post("/api/groups/:groupId/join", asyncHandler(async (req, res) => {
   const { groupId } = req.params;
+  if (!await groupExists(groupId)) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const memberRef = db.ref(`groupMembers/${groupId}/${req.user.uid}`);
   const memberSnap = await memberRef.get();
 
@@ -852,6 +917,9 @@ app.post("/api/groups/join-by-code", asyncHandler(async (req, res) => {
 
 app.get("/api/groups/:groupId/members", asyncHandler(async (req, res) => {
   const { groupId } = req.params;
+  if (!await groupExists(groupId)) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const memberSnap = await db.ref(`groupMembers/${groupId}/${req.user.uid}`).get();
   if (!memberSnap.exists()) {
     return res.status(403).json({ error: "Join this group first" });
@@ -880,6 +948,9 @@ app.get("/api/groups/:groupId/members", asyncHandler(async (req, res) => {
 
 app.post("/api/groups/:groupId/admins/:memberUid", asyncHandler(async (req, res) => {
   const { groupId, memberUid } = req.params;
+  if (!await groupExists(groupId)) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const requesterIsAdmin = await isGroupAdmin(groupId, req.user.uid);
   if (!requesterIsAdmin) {
     return res.status(403).json({ error: "Only admins can promote members" });
@@ -896,6 +967,9 @@ app.post("/api/groups/:groupId/admins/:memberUid", asyncHandler(async (req, res)
 
 app.post("/api/groups/:groupId/remove/:memberUid", asyncHandler(async (req, res) => {
   const { groupId, memberUid } = req.params;
+  if (!await groupExists(groupId)) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const requesterIsAdmin = await isGroupAdmin(groupId, req.user.uid);
   if (!requesterIsAdmin) {
     return res.status(403).json({ error: "Only admins can remove members" });
@@ -913,6 +987,9 @@ app.post("/api/groups/:groupId/remove/:memberUid", asyncHandler(async (req, res)
 
 app.post("/api/groups/:groupId/messages/clear", asyncHandler(async (req, res) => {
   const { groupId } = req.params;
+  if (!await groupExists(groupId)) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const requesterIsAdmin = await isGroupAdmin(groupId, req.user.uid);
   if (!requesterIsAdmin) {
     return res.status(403).json({ error: "Only admins can clear messages" });
@@ -923,6 +1000,9 @@ app.post("/api/groups/:groupId/messages/clear", asyncHandler(async (req, res) =>
 
 app.post("/api/groups/:groupId/settings", asyncHandler(async (req, res) => {
   const { groupId } = req.params;
+  if (!await groupExists(groupId)) {
+    return res.status(404).json({ error: "Group not found" });
+  }
   const requesterIsAdmin = await isGroupAdmin(groupId, req.user.uid);
   if (!requesterIsAdmin) {
     return res.status(403).json({ error: "Only admins can update group settings" });
@@ -1108,6 +1188,9 @@ app.use((err, req, res, _next) => {
   console.error(`[${appName}]`, req.method, req.path, err);
   if (res.headersSent) {
     return;
+  }
+  if (typeof err?.message === "string" && err.message.startsWith("CORS blocked for origin:")) {
+    return res.status(403).json({ error: err.message });
   }
   res.status(500).json({ error: "Server error" });
 });

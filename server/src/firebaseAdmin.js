@@ -13,10 +13,18 @@ for (const key of requiredEnv) {
   }
 }
 
+function normalizePrivateKey(rawValue) {
+  const value = String(rawValue || "").replace(/\\n/g, "\n").trim();
+  if (!value.includes("BEGIN PRIVATE KEY") || !value.includes("END PRIVATE KEY")) {
+    throw new Error("FIREBASE_PRIVATE_KEY appears malformed");
+  }
+  return value;
+}
+
 const serviceAccount = {
   projectId: process.env.FIREBASE_PROJECT_ID,
   clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+  privateKey: normalizePrivateKey(process.env.FIREBASE_PRIVATE_KEY),
 };
 
 if (!admin.apps.length) {
