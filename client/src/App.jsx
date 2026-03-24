@@ -245,7 +245,7 @@ function App() {
     const firstSegment = pathname.split("/")[1] || "";
     const defaultMeta = {
       title: "Mega Tweets",
-      description: "Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
+      description: "Mega Tweets, Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
       robots: "index,follow",
       ogImage: DEFAULT_OG_IMAGE,
       path: pathname,

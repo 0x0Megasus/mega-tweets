@@ -29,7 +29,7 @@ export default defineConfig({
       manifest: {
         name: "Mega Tweets",
         short_name: "MegaTweets",
-        description: "Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
+        description: "Mega Tweets, Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
         theme_color: "#0e0f11",
         background_color: "#0e0f11",
         display: "standalone",

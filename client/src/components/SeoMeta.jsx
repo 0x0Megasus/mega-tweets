@@ -10,7 +10,7 @@ const toAbsoluteUrl = (value = "") => {
 
 export default function SeoMeta({
   title = "Mega Tweets",
-  description = "Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
+  description = "Mega Tweets, Share tweets, chat in groups and DMs, and follow people on Mega Tweets.",
   robots = "index,follow",
   ogImage = "/app-icon-512.png",
   path = "/",
